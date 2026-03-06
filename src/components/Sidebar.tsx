@@ -26,7 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     { id: 'reservists', label: 'מילואים', icon: Users, show: isAdmin || hasMyReservists },
     { id: 'abroad', label: 'חו"ל', icon: Plane, show: isAdmin },
     { id: 'scheduler', label: 'סידור משמרות', icon: CalendarDays, show: true },
-    { id: 'management', label: 'ניהול מערכת', icon: Settings, show: isAdmin },
+    { id: 'management', label: 'ניהול כוח אדם', icon: Settings, show: isAdmin || isHoT },
   ].filter(t => t.show);
 
   return (
