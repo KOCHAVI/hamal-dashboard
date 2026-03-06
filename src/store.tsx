@@ -89,6 +89,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     refreshData();
+
+    // Polling: Refresh data every 3 seconds to keep clients in sync
+    const interval = setInterval(() => {
+      // Only refresh if we aren't already loading and the window is visible
+      if (!document.hidden) {
+        refreshData();
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const addCampaign = async (name: string, startDate: string) => {
@@ -146,12 +156,33 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const updatePersonnelStatus = async (id: string, status: PresenceStatus, note?: string) => {
-    await fetch(`/api/personnel/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, note }),
-    });
-    await refreshData();
+    // 1. Optimistic Update: Update local state immediately
+    const previousPersonnel = [...personnel];
+    const now = new Date().toISOString();
+    
+    setPersonnel(prev => prev.map(p => 
+      p.id === id ? { ...p, currentStatus: status, statusNote: note, statusUpdatedAt: now } : p
+    ));
+
+    try {
+      const res = await fetch(`/api/personnel/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, note }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update server');
+      }
+      
+      // Optionally refresh to ensure everything is in sync
+      await refreshData();
+    } catch (err) {
+      // 2. Rollback on failure
+      console.error('Rollback status update:', err);
+      setPersonnel(previousPersonnel);
+      alert('שגיאה בעדכון הסטטוס בשרת. מבצע שחזור...');
+    }
   };
 
   const addShiftsBulk = async (shiftsData: { personnelIds: string[], startTime: string, endTime: string }[]) => {
