@@ -7,27 +7,29 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Database Setup
-const url = process.env.TURSO_DATABASE_URL || 'file:local.db';
+const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
 
+if (!url && process.env.NODE_ENV === 'production') {
+  console.error('CRITICAL: TURSO_DATABASE_URL is not defined in production!');
+}
+
 const client = createClient({
-  url: url,
+  url: url || 'file:local.db',
   authToken: authToken,
 });
 
 // Helper to run raw SQL (compatible with previous db.exec)
 const initDb = async () => {
-  const queries = [
-    `CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, name TEXT NOT NULL, start_date TEXT NOT NULL, end_date TEXT)`,
-    `CREATE TABLE IF NOT EXISTS personnel (id TEXT PRIMARY KEY, full_name TEXT NOT NULL, team_id TEXT, is_reservist INTEGER DEFAULT 0, is_admin INTEGER DEFAULT 0, is_hot INTEGER DEFAULT 0, phone_number TEXT, emergency_phone_number TEXT, city TEXT, home_address TEXT, current_status TEXT DEFAULT 'בית', status_updated_at TEXT NOT NULL, status_note TEXT)`,
-    `CREATE TABLE IF NOT EXISTS teams (id TEXT PRIMARY KEY, name TEXT NOT NULL, leader_id TEXT NOT NULL, campaign_id TEXT NOT NULL, FOREIGN KEY (leader_id) REFERENCES personnel (id), FOREIGN KEY (campaign_id) REFERENCES campaigns (id))`,
-    `CREATE TABLE IF NOT EXISTS shifts (id TEXT PRIMARY KEY, start_time TEXT NOT NULL, end_time TEXT NOT NULL)`,
-    `CREATE TABLE IF NOT EXISTS shift_personnel (shift_id TEXT NOT NULL, personnel_id TEXT NOT NULL, PRIMARY KEY (shift_id, personnel_id), FOREIGN KEY (shift_id) REFERENCES shifts (id) ON DELETE CASCADE, FOREIGN KEY (personnel_id) REFERENCES personnel (id) ON DELETE CASCADE)`,
-    `INSERT OR IGNORE INTO personnel (id, full_name, is_admin, status_updated_at) VALUES ('admin-001', 'מנהל מערכת', 1, '2024-01-01T00:00:00.000Z')`
-  ];
-
-  for (const q of queries) {
-    await client.execute(q);
+  if (!url && process.env.NODE_ENV === 'production') return;
+...
+  try {
+    for (const q of queries) {
+      await client.execute(q);
+    }
+    console.log('Database initialized successfully');
+  } catch (err) {
+    console.error('Database initialization failed:', err);
   }
 };
 
@@ -55,6 +57,10 @@ const verifyAccess = async (actorId: string, teamId?: string) => {
   }
   return false;
 };
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', node_env: process.env.NODE_ENV, has_db_url: !!process.env.TURSO_DATABASE_URL });
+});
 
 // API Endpoints
 app.get('/api/data', async (req, res) => {
