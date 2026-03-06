@@ -11,21 +11,31 @@ import { SirenMode } from './components/SirenMode';
 import { Reservists } from './components/Reservists';
 import { Scheduler } from './components/Scheduler';
 
+import { Management } from './components/Management';
+import { AbroadBoard } from './components/AbroadBoard';
+import { Login } from './components/Login';
+
 const MainContent = () => {
-  const { sirenMode } = useAppContext();
+  const { sirenMode, activeUser } = useAppContext();
   const [activeTab, setActiveTab] = useState('board');
+
+  if (!activeUser) {
+    return <Login />;
+  }
 
   if (sirenMode) {
     return <SirenMode />;
   }
 
   return (
-    <div className="flex h-screen w-full bg-zinc-50 overflow-hidden font-sans text-zinc-900">
+    <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden font-sans text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 h-full overflow-hidden relative">
+      <main className="flex-1 h-full overflow-hidden relative bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200">
         {activeTab === 'board' && <LiveBoard />}
         {activeTab === 'reservists' && <Reservists />}
+        {activeTab === 'abroad' && <AbroadBoard />}
         {activeTab === 'scheduler' && <Scheduler />}
+        {activeTab === 'management' && <Management />}
       </main>
     </div>
   );

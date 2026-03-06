@@ -1,11 +1,9 @@
 export enum PresenceStatus {
   HOME = 'בית',
   WAY_TO_BASE = 'בדרך לבסיס',
-  BASE_RESTING = 'בבסיס - מנוחה',
   BASE_SHIFT = 'בבסיס - במשמרת',
   WAY_HOME = 'בדרך הביתה',
   ABROAD = 'בחו"ל',
-  EXCEPTION = 'חריג',
 }
 
 export interface Campaign {
@@ -25,8 +23,9 @@ export interface Personnel {
   id: string;
   fullName: string;
   teamId: string;
-  role: string;
   isReservist: boolean;
+  isAdmin: boolean;
+  isHoT: boolean;
   phoneNumber: string;
   emergencyPhoneNumber: string;
   city: string;
@@ -44,7 +43,7 @@ export interface Personnel {
 
 export interface Shift {
   id: string;
-  personnelId: string;
+  personnelIds: string[];
   startTime: string; // ISO string
   endTime: string; // ISO string
 }

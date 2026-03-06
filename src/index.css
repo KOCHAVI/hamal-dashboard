@@ -6,12 +6,22 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Configure dark mode variant for class-based strategy */
+@variant dark (&:where(.dark, .dark *));
+
+:root.dark {
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-sans);
-  background-color: #fafafa;
-  color: #18181b;
+  @apply bg-zinc-50 text-zinc-900 transition-colors duration-200;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.dark body {
+  @apply bg-zinc-950 text-zinc-100;
 }
 
 /* Custom scrollbar for a cleaner look */
@@ -25,10 +35,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 10px;
+  @apply bg-zinc-300 rounded-full;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-zinc-700;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
+  @apply bg-zinc-400;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-600;
 }

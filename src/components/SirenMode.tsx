@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store';
 import { PresenceStatus } from '../types';
-import { ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, Phone } from 'lucide-react';
 import clsx from 'clsx';
 
 export const SirenMode = () => {
@@ -21,7 +21,7 @@ export const SirenMode = () => {
   };
 
   const inBasePersonnel = personnel.filter(
-    p => p.currentStatus === PresenceStatus.BASE_RESTING || p.currentStatus === PresenceStatus.BASE_SHIFT
+    p => p.currentStatus === PresenceStatus.BASE_SHIFT
   );
 
   const groupedByTeam = teams.map(team => {
@@ -58,7 +58,7 @@ export const SirenMode = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groupedByTeam.map(team => {
             const teamCheckedCount = team.members.filter(m => checkedPersonnel.has(m.id)).length;
-            const allChecked = team.members.length > 0 && teamCheckedCount === team.members.length;
+            const allChecked = team.members.length === 0 || teamCheckedCount === team.members.length;
             
             return (
             <div key={team.id} className={clsx(
@@ -74,7 +74,7 @@ export const SirenMode = () => {
                   "px-3 py-1 text-xs font-bold rounded-full border transition-colors",
                   allChecked ? "bg-emerald-950 text-emerald-400 border-emerald-900/50" : "bg-red-950 text-red-400 border-red-900/50"
                 )}>
-                  {teamCheckedCount} / {team.members.length} בטוחים
+                  {teamCheckedCount} / {team.members.length}
                 </span>
               </div>
               
@@ -87,33 +87,35 @@ export const SirenMode = () => {
                   team.members.map(member => {
                     const isChecked = checkedPersonnel.has(member.id);
                     return (
-                    <div key={member.id} className={clsx(
-                      "flex items-center justify-between p-3 rounded-xl border transition-colors",
-                      isChecked ? "bg-emerald-950/50 border-emerald-900/50" : "bg-red-950/50 border-red-900/30 hover:border-red-700/50"
-                    )}>
+                    <div 
+                      key={member.id} 
+                      onClick={() => toggleCheck(member.id)}
+                      className={clsx(
+                        "flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer transform active:scale-[0.98]",
+                        isChecked ? "bg-emerald-950/50 border-emerald-900/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-red-950/50 border-red-900/30 hover:border-red-700/50"
+                      )}
+                    >
                       <div>
                         <div className={clsx("font-bold transition-colors", isChecked ? "text-emerald-50" : "text-red-50")}>{member.fullName}</div>
-                        <div className={clsx("text-xs uppercase tracking-wider mt-0.5 transition-colors", isChecked ? "text-emerald-400" : "text-red-400")}>{member.role}</div>
+                        <div className="flex items-center gap-1 text-[10px] text-red-400 font-bold mt-0.5" dir="ltr">
+                          <Phone size={10} />
+                          <span>{member.phoneNumber}</span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={clsx(
-                          'text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider',
-                          member.currentStatus === PresenceStatus.BASE_SHIFT ? 'bg-indigo-900/50 text-indigo-300' : 'bg-blue-900/50 text-blue-300'
-                        )}>
-                          {member.currentStatus === PresenceStatus.BASE_SHIFT ? 'במשמרת' : 'במנוחה'}
+                        <span className="text-xs font-bold px-2 py-1 rounded-md uppercase tracking-wider bg-indigo-900/50 text-indigo-300">
+                          במשמרת
                         </span>
-                        <button 
-                          onClick={() => toggleCheck(member.id)}
+                        <div 
                           className={clsx(
                             "p-2 rounded-lg border transition-colors",
                             isChecked 
                               ? "bg-emerald-600 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" 
-                              : "bg-zinc-900/50 hover:bg-emerald-900/30 text-zinc-500 hover:text-emerald-400 border-zinc-800 hover:border-emerald-900/50"
+                              : "bg-zinc-900/50 text-zinc-500 border-zinc-800"
                           )} 
-                          title={isChecked ? "בטל סימון" : "סמן כבטוח"}
                         >
                           <CheckCircle2 size={20} />
-                        </button>
+                        </div>
                       </div>
                     </div>
                   )})
