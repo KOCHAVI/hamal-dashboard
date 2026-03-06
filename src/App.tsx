@@ -10,10 +10,10 @@ import { LiveBoard } from './components/LiveBoard';
 import { SirenMode } from './components/SirenMode';
 import { Reservists } from './components/Reservists';
 import { Scheduler } from './components/Scheduler';
-
 import { Management } from './components/Management';
 import { AbroadBoard } from './components/AbroadBoard';
 import { Login } from './components/Login';
+import { SADACH } from './components/SADACH';
 
 const MainContent = () => {
   const { sirenMode, activeUser } = useAppContext();
@@ -32,6 +32,7 @@ const MainContent = () => {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="flex-1 h-full overflow-hidden relative bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200">
         {activeTab === 'board' && <LiveBoard />}
+        {activeTab === 'sadach' && <SADACH />}
         {activeTab === 'reservists' && <Reservists />}
         {activeTab === 'abroad' && <AbroadBoard />}
         {activeTab === 'scheduler' && <Scheduler />}

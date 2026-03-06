@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { LayoutDashboard, AlertTriangle, Users, CalendarDays, Settings, RefreshCw, UserCircle, Plane, LogOut, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Users, CalendarDays, Settings, RefreshCw, UserCircle, Plane, LogOut, Sun, Moon, Shield } from 'lucide-react';
 import { useAppContext } from '../store';
 import clsx from 'clsx';
 
@@ -23,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
   const tabs = [
     { id: 'board', label: 'לוח נוכחות', icon: LayoutDashboard, show: true },
+    { id: 'sadach', label: 'סד"כ בסיס', icon: Shield, show: isAdmin },
     { id: 'reservists', label: 'מילואים', icon: Users, show: isAdmin || hasMyReservists },
     { id: 'abroad', label: 'חו"ל', icon: Plane, show: isAdmin },
     { id: 'scheduler', label: 'סידור משמרות', icon: CalendarDays, show: true },
