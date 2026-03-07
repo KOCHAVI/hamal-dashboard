@@ -30,7 +30,7 @@ const MainContent = () => {
   return (
     <div className="flex h-screen w-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden font-sans text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 h-full overflow-hidden relative bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200">
+      <main className="flex-1 h-full overflow-hidden relative bg-zinc-50 dark:bg-zinc-950 transition-colors duration-200 pt-16 lg:pt-0">
         {activeTab === 'board' && <LiveBoard />}
         {activeTab === 'sadach' && <SADACH />}
         {activeTab === 'reservists' && <Reservists />}

@@ -69,21 +69,21 @@ export const Management = () => {
   const isHoTForSelectedTeam = isAdmin || (activeUser?.isHoT && (soldierData.team_id === activeUser.teamId || !isAdmin));
 
   return (
-    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950 p-8 text-right transition-colors duration-200" dir="rtl">
-      <div className={clsx("mx-auto space-y-8 transition-all", isAdmin ? "max-w-6xl" : "max-w-4xl")}>
-        <h2 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">ניהול כוח אדם</h2>
+    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950 p-4 lg:p-8 text-right transition-colors duration-200" dir="rtl">
+      <div className={clsx("mx-auto space-y-6 lg:space-y-8 transition-all", isAdmin ? "max-w-6xl" : "max-w-4xl")}>
+        <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">ניהול כוח אדם</h2>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
           
           {isAdmin && (
             <>
               {/* 1. Campaign Management */}
-              <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+              <div className="bg-white dark:bg-zinc-900 p-4 lg:p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
                 <div className="flex items-center gap-2 mb-4">
                   <Flag className="text-indigo-500" size={20} />
                   <h3 className="text-lg font-bold dark:text-white">ניהול מבצעים</h3>
                 </div>
-                <form onSubmit={handleCreateCampaign} className="flex gap-2">
+                <form onSubmit={handleCreateCampaign} className="flex flex-col sm:flex-row gap-2">
                   <input 
                     type="text" 
                     placeholder="שם המבצע"
@@ -92,28 +92,28 @@ export const Management = () => {
                     onChange={e => setNewCampaignName(e.target.value)}
                     required
                   />
-                  <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold transition-colors">
+                  <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-colors">
                     הוסף
                   </button>
                 </form>
                 <div className="mt-4 space-y-2 max-h-32 overflow-y-auto">
                   {campaigns.map(c => (
                     <div key={c.id} className="p-2.5 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-zinc-700 text-sm flex justify-between items-center transition-colors">
-                      <span className="font-bold dark:text-zinc-200">{c.name}</span>
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500">{new Date(c.startDate).toLocaleDateString('he-IL')}</span>
+                      <span className="font-bold dark:text-zinc-200 text-xs sm:text-sm">{c.name}</span>
+                      <span className="text-[10px] sm:text-xs text-zinc-400 dark:text-zinc-500">{new Date(c.startDate).toLocaleDateString('he-IL')}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* 2. Unified Team & HoT Creation (Admin Only) */}
-              <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+              <div className="bg-white dark:bg-zinc-900 p-4 lg:p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
                 <div className="flex items-center gap-2 mb-4">
                   <ShieldCheck className="text-emerald-500" size={20} />
                   <h3 className="text-lg font-bold dark:text-white">הקמת צוות ומינוי מפקד</h3>
                 </div>
                 <form onSubmit={handleCreateTeam} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input 
                       placeholder="שם הצוות"
                       className="p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
@@ -132,7 +132,7 @@ export const Management = () => {
                     </select>
                   </div>
                   <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 space-y-3 transition-colors">
-                    <div className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">פרטי ראש צוות</div>
+                    <div className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">פרטי ראש צוות</div>
                     <input 
                       placeholder="שם מלא של המפקד"
                       className="w-full p-3 border border-emerald-200 dark:border-emerald-800 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none transition-all"
@@ -141,7 +141,7 @@ export const Management = () => {
                       required
                     />
                     <input 
-                      placeholder="מספר טלפון (לכניסה למערכת)"
+                      placeholder="מספר טלפון"
                       className="w-full p-3 border border-emerald-200 dark:border-emerald-800 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none text-left transition-all"
                       dir="ltr"
                       value={teamData.hotPhoneNumber}
@@ -159,7 +159,7 @@ export const Management = () => {
 
           {/* 3. Add Soldier (Admin or HoT) */}
           <div className={clsx(
-            "bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors lg:col-span-2",
+            "bg-white dark:bg-zinc-900 p-4 lg:p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors lg:col-span-2",
             !isAdmin && "shadow-xl border-indigo-500/20 dark:border-indigo-500/10"
           )}>
             <div className="flex items-center gap-3 mb-6">
@@ -169,7 +169,7 @@ export const Management = () => {
               <h3 className="text-xl font-bold dark:text-white">הוספת חייל חדש לצוות</h3>
             </div>
             
-            <form onSubmit={handleAddSoldier} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <form onSubmit={handleAddSoldier} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">שם מלא</label>
                 <input 
@@ -211,12 +211,12 @@ export const Management = () => {
                 )}
               </div>
               
-              <div className="flex flex-wrap items-center gap-6 px-4 md:col-span-2 lg:col-span-3 py-3 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 transition-colors">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 px-4 md:col-span-2 lg:col-span-3 py-3 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 transition-colors">
                 <div className="flex items-center gap-3">
                   <input 
                     type="checkbox"
                     id="isSoldierReservist"
-                    className="w-4 h-4 text-indigo-600 rounded dark:bg-zinc-800"
+                    className="w-4 h-4 text-indigo-600 rounded dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600"
                     checked={soldierData.is_reservist}
                     onChange={e => setSoldierData({...soldierData, is_reservist: e.target.checked})}
                   />
@@ -227,7 +227,7 @@ export const Management = () => {
                   <input 
                     type="checkbox"
                     id="isSoldierAbroad"
-                    className="w-4 h-4 text-purple-600 rounded dark:bg-zinc-800"
+                    className="w-4 h-4 text-purple-600 rounded dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600"
                     checked={soldierData.is_abroad}
                     onChange={e => setSoldierData({...soldierData, is_abroad: e.target.checked})}
                   />

@@ -128,7 +128,7 @@ export const LiveBoard = () => {
 
     return (
       <div key={statusId} className={clsx(
-        "flex-1 flex flex-col bg-zinc-100/50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden",
+        "flex-1 flex flex-col bg-zinc-100/50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden min-w-[280px] lg:min-w-0",
         isHalfHeight ? "" : "h-full"
       )}>
         <div className={clsx('p-3 border-b flex items-center justify-between', column.color.split(' ')[0], column.color.split(' ')[2], 'dark:border-zinc-800')}>
@@ -174,18 +174,18 @@ export const LiveBoard = () => {
 
   return (
     <div className="h-full flex flex-col bg-zinc-50/50 dark:bg-zinc-950/50 relative">
-      <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex justify-between items-center text-right transition-colors duration-200" dir="rtl">
+      <div className="p-4 lg:p-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 text-right transition-colors duration-200" dir="rtl">
         <div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">לוח נוכחות בזמן אמת</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">גרור ושחרר אנשי צוות כדי לעדכן סטטוס בזמן אמת.</p>
+          <h2 className="text-xl lg:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">לוח נוכחות בזמן אמת</h2>
+          <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">גרור ושחרר אנשי צוות כדי לעדכן סטטוס.</p>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:gap-6 w-full lg:w-auto">
           <div className="relative">
             <input 
               type="text" 
               placeholder="חיפוש לפי שם..."
-              className="w-64 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none p-2 pr-9 text-right transition-all"
+              className="w-full lg:w-64 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none p-2 pr-9 text-right transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -193,9 +193,9 @@ export const LiveBoard = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">סינון לפי צוות:</label>
+            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">סינון:</label>
             <select 
-              className="bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none p-2 min-w-[140px] transition-all"
+              className="flex-1 lg:flex-none bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none p-2 min-w-[140px] transition-all"
               value={selectedTeam}
               onChange={(e) => setSelectedTeam(e.target.value)}
             >
@@ -208,9 +208,9 @@ export const LiveBoard = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden p-6 relative" dir="rtl">
+      <div className="flex-1 overflow-x-auto lg:overflow-hidden p-4 lg:p-6 relative" dir="rtl">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-4 h-full w-full">
+          <div className="flex gap-4 h-full min-w-max lg:min-w-0 lg:w-full">
             {COLUMN_LAYOUT.map((item, idx) => {
               if (item.type === 'single') {
                 return renderColumn(item.id);
