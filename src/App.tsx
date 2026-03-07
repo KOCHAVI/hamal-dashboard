@@ -16,6 +16,7 @@ import { Login } from './components/Login';
 import { SADACH } from './components/SADACH';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import clsx from 'clsx';
+import { Analytics } from '@vercel/analytics/react';
 
 const NotificationToast = () => {
   const { notification } = useAppContext();
@@ -70,6 +71,7 @@ export default function App() {
   return (
     <AppProvider>
       <MainContent />
+      <Analytics />
     </AppProvider>
   );
 }
