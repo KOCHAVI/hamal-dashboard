@@ -4,7 +4,7 @@ import { useAppContext } from '../store';
 import { PresenceStatus, Personnel } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Clock, AlertCircle, Plane, Home, Briefcase, Car, Search, PhoneCall, Phone } from 'lucide-react';
+import { Clock, AlertCircle, Plane, Home, Briefcase, Car, Search, PhoneCall, Phone, LogOut } from 'lucide-react';
 import clsx from 'clsx';
 
 const STATUS_COLUMNS = {
@@ -21,10 +21,26 @@ const COLUMN_LAYOUT = [
   { type: 'single', id: PresenceStatus.BASE_SHIFT },
 ];
 
-const PersonnelCard: React.FC<{ person: Personnel; index: number; isMissing: boolean; isDragDisabled: boolean }> = ({ person, index, isMissing, isDragDisabled }) => {
-  const isTransit = person.currentStatus === PresenceStatus.WAY_TO_BASE || person.currentStatus === PresenceStatus.WAY_HOME;
+const PersonnelCard: React.FC<{ person: Personnel; index: number; hasActiveShift: boolean; isDragDisabled: boolean }> = ({ person, index, hasActiveShift, isDragDisabled }) => {
+  const isWayToBase = person.currentStatus === PresenceStatus.WAY_TO_BASE;
+  const isWayHome = person.currentStatus === PresenceStatus.WAY_HOME;
   const transitTime = new Date().getTime() - new Date(person.statusUpdatedAt).getTime();
-  const isDelayed = isTransit && transitTime > 2 * 60 * 60 * 1000; // 2 hours
+  
+  const isCriticalDelay = isWayToBase && transitTime > 4 * 60 * 60 * 1000;
+  const isDelayed = (isWayToBase || isWayHome) && transitTime > 2 * 60 * 60 * 1000;
+
+  // Specific Alert Logic
+  const isMissing = hasActiveShift && person.currentStatus !== PresenceStatus.BASE_SHIFT;
+  const shouldGoHome = !hasActiveShift && person.currentStatus === PresenceStatus.BASE_SHIFT;
+
+  let alertLabel = null;
+  if (hasActiveShift) {
+    if (person.currentStatus === PresenceStatus.HOME) alertLabel = "צריך להגיע";
+    else if (person.currentStatus === PresenceStatus.WAY_TO_BASE) alertLabel = "מאחר";
+    else if (person.currentStatus !== PresenceStatus.BASE_SHIFT) alertLabel = "נפקד!";
+  } else if (shouldGoHome) {
+    alertLabel = "צריך ללכת הביתה";
+  }
 
   return (
     <Draggable draggableId={person.id} index={index} isDragDisabled={isDragDisabled}>
@@ -36,18 +52,30 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; isMissing: boo
           className={clsx(
             'p-2 rounded-lg border transition-all relative overflow-hidden',
             snapshot.isDragging ? 'shadow-lg ring-2 ring-indigo-500/50 scale-105' : 'hover:border-zinc-300 dark:hover:border-zinc-600',
-            // Light colors
-            !snapshot.isDragging && !isDelayed && 'bg-white border-zinc-200 text-zinc-900',
-            // Dark colors
-            !snapshot.isDragging && !isDelayed && 'dark:bg-zinc-900 dark:border-zinc-800 dark:text-zinc-100',
-            isDelayed ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20 dark:border-red-900/50' : '',
+            !snapshot.isDragging && !isDelayed && !isCriticalDelay && !isMissing && !shouldGoHome && 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100',
+            
+            isDelayed && !isCriticalDelay && 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50',
+            isCriticalDelay && 'border-orange-500 ring-2 ring-orange-500/30 bg-orange-50 dark:bg-orange-950/30 animate-pulse',
+            
             isMissing && 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/30 dark:bg-rose-950/20',
+            shouldGoHome && 'border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20',
+            
             isDragDisabled && !snapshot.isDragging ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
           )}
         >
           {isMissing && (
             <div className="absolute top-0 left-0 bg-rose-500 text-white p-0.5 rounded-br-md animate-pulse z-10">
               <PhoneCall size={10} />
+            </div>
+          )}
+          {shouldGoHome && (
+            <div className="absolute top-0 left-0 bg-indigo-500 text-white p-0.5 rounded-br-md z-10">
+              <LogOut size={10} />
+            </div>
+          )}
+          {isCriticalDelay && !isMissing && (
+            <div className="absolute top-0 left-0 bg-orange-500 text-white p-0.5 rounded-br-md z-10">
+              <AlertCircle size={10} />
             </div>
           )}
 
@@ -58,7 +86,14 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; isMissing: boo
                 <Phone size={10} className="shrink-0" />
                 <span dir="ltr" className="tabular-nums">{person.phoneNumber}</span>
               </div>
-              {isMissing && <p className="text-[9px] font-black text-rose-600 dark:text-rose-400 mt-0.5 animate-pulse uppercase">נפקד!</p>}
+              {alertLabel && (
+                <p className={clsx(
+                  "text-[9px] font-black mt-0.5 uppercase tracking-tighter",
+                  isMissing ? "text-rose-600 dark:text-rose-400 animate-pulse" : "text-indigo-600 dark:text-indigo-400"
+                )}>
+                  {alertLabel}
+                </p>
+              )}
             </div>
             {person.isReservist && (
               <span className="px-1 py-0.5 rounded text-[8px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 shrink-0 mr-1">
@@ -68,11 +103,14 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; isMissing: boo
           </div>
           
           <div className="flex items-center gap-1 mt-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 justify-end font-medium">
-            {isDelayed && <AlertCircle size={10} className="text-red-500" />}
-            <span className={clsx(isDelayed && 'text-red-600 dark:text-red-400 font-bold')}>
+            {(isDelayed || isCriticalDelay || isMissing) && <Clock size={10} className={clsx(isCriticalDelay || isMissing ? "text-rose-500" : "text-amber-500")} />}
+            <span className={clsx(
+              (isCriticalDelay || isMissing) ? "text-rose-600 dark:text-rose-400 font-black" : 
+              isDelayed ? "text-amber-600 dark:text-amber-400 font-bold" : ""
+            )}>
               {formatDistanceToNow(new Date(person.statusUpdatedAt), { locale: he, addSuffix: true })}
             </span>
-            <Clock size={10} className="shrink-0" />
+            {!isDelayed && !isCriticalDelay && !isMissing && <Clock size={10} className="shrink-0" />}
           </div>
 
           {person.statusNote && (
@@ -170,9 +208,8 @@ export const LiveBoard = () => {
                   new Date(s.startTime) <= now && 
                   new Date(s.endTime) >= now
                 );
-                const isMissing = hasActiveShift && person.currentStatus !== PresenceStatus.BASE_SHIFT;
 
-                return <PersonnelCard key={person.id} person={person} index={index} isMissing={isMissing} isDragDisabled={!isAdmin} />;
+                return <PersonnelCard key={person.id} person={person} index={index} hasActiveShift={hasActiveShift} isDragDisabled={!isAdmin} />;
               })}
               {provided.placeholder}
             </div>

@@ -14,6 +14,7 @@ import { Management } from './components/Management';
 import { AbroadBoard } from './components/AbroadBoard';
 import { Login } from './components/Login';
 import { SADACH } from './components/SADACH';
+import { Analytics } from './components/Analytics';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -59,6 +60,7 @@ const MainContent = () => {
         {activeTab === 'reservists' && <Reservists />}
         {activeTab === 'abroad' && <AbroadBoard />}
         {activeTab === 'scheduler' && <Scheduler />}
+        {activeTab === 'analytics' && <Analytics />}
         {activeTab === 'management' && <Management />}
       </main>
       <NotificationToast />

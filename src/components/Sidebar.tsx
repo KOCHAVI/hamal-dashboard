@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { LayoutDashboard, AlertTriangle, Users, CalendarDays, Settings, RefreshCw, UserCircle, Plane, LogOut, Sun, Moon, Shield, Menu, X as CloseIcon } from 'lucide-react';
+import { LayoutDashboard, AlertTriangle, Users, CalendarDays, Settings, RefreshCw, UserCircle, Plane, LogOut, Sun, Moon, Shield, Menu, X as CloseIcon, BarChart3 } from 'lucide-react';
 import { useAppContext } from '../store';
 import clsx from 'clsx';
 
@@ -22,12 +22,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
     return personnel.some(p => p.teamId === activeUser.teamId && p.isReservist);
   }, [personnel, isAdmin, isHoT, activeUser]);
 
+  const hasAnyoneAbroad = useMemo(() => {
+    return personnel.some(p => p.currentStatus === 'בחו"ל');
+  }, [personnel]);
+
   const tabs = [
     { id: 'board', label: 'לוח נוכחות', icon: LayoutDashboard, show: true },
     { id: 'sadach', label: 'סד"כ בסיס', icon: Shield, show: isAdmin },
     { id: 'reservists', label: 'מילואים', icon: Users, show: isAdmin || hasMyReservists },
-    { id: 'abroad', label: 'חו"ל', icon: Plane, show: isAdmin },
+    { id: 'abroad', label: 'חו"ל', icon: Plane, show: isAdmin && hasAnyoneAbroad },
     { id: 'scheduler', label: 'סידור משמרות', icon: CalendarDays, show: true },
+    { id: 'analytics', label: 'אנליטיקה', icon: BarChart3, show: isAdmin || isHoT },
     { id: 'management', label: 'ניהול כוח אדם', icon: Settings, show: isAdmin || isHoT },
   ].filter(t => t.show);
 
