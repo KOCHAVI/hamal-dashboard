@@ -171,6 +171,7 @@ export const Analytics = () => {
                         backgroundColor: darkMode ? '#18181b' : '#ffffff',
                         color: darkMode ? '#f4f4f5' : '#18181b'
                       }}
+                      itemStyle={{ color: darkMode ? '#f4f4f5' : '#18181b' }}
                     />
                     <Legend verticalAlign="bottom" height={36}/>
                   </PieChart>
