@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppProvider, useAppContext } from './store';
 import { Sidebar } from './components/Sidebar';
 import { LiveBoard } from './components/LiveBoard';
@@ -70,6 +71,7 @@ export default function App() {
   return (
     <AppProvider>
       <MainContent />
+      <SpeedInsights />
     </AppProvider>
   );
 }
