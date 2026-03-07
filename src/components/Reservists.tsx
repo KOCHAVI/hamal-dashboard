@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../store';
-import { format, addDays, startOfWeek, setHours, setMinutes, parseISO, addHours } from 'date-fns';
+import { format, addDays, startOfWeek, setHours, setMinutes, parseISO, addHours, addWeeks, subWeeks } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Sun, Moon, Save, X, AlertTriangle, Clock, Shield } from 'lucide-react';
+import { Sun, Moon, Save, X, AlertTriangle, Clock, Shield, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
 import { PresenceStatus } from '../types';
 import clsx from 'clsx';
 
@@ -23,10 +23,13 @@ export const Reservists = () => {
   const { personnel, shifts, syncShifts, activeUser, showNotification } = useAppContext();
   const isAdmin = activeUser?.isAdmin;
   
-  const [startDate] = useState(() => {
-    const today = new Date();
-    return startOfWeek(today, { weekStartsOn: 0 });
-  });
+  // Navigation State
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const startDate = useMemo(() => {
+    const base = startOfWeek(new Date(), { weekStartsOn: 0 });
+    return weekOffset >= 0 ? addWeeks(base, weekOffset) : subWeeks(base, Math.abs(weekOffset));
+  }, [weekOffset]);
 
   const weekDays = useMemo(() => 
     Array.from({ length: 7 }).map((_, i) => addDays(startDate, i)),
@@ -72,7 +75,7 @@ export const Reservists = () => {
     });
     setInitialDraft(normalizeDraft(newDraft));
     setDraft(normalizeDraft(newDraft));
-  }, [shifts, myReservists, hasChanges]);
+  }, [shifts, myReservists, hasChanges, startDate]);
 
   const isSlotPast = (date: Date, type: 'day' | 'night') => {
     const now = new Date();
@@ -163,14 +166,48 @@ export const Reservists = () => {
 
   return (
     <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-right transition-colors duration-200" dir="rtl">
-      <div className="p-8 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col sm:flex-row justify-between items-center gap-4 transition-colors">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-indigo-600 dark:bg-indigo-500 rounded-2xl text-white shadow-lg">
-            <Shield size={24} />
+      <div className="p-4 lg:p-8 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 transition-colors">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-indigo-600 dark:bg-indigo-500 rounded-2xl text-white shadow-lg">
+              <Shield size={24} />
+            </div>
+            <div>
+              <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">סידור מילואים</h2>
+              <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium italic">מציג אנשי מילואים בלבד</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">סידור משמרות מילואים</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium italic">מציג אנשי מילואים בלבד</p>
+
+          {/* Week Navigator */}
+          <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 mr-0 sm:mr-4">
+            <button 
+              onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) setWeekOffset(prev => prev - 1); }}
+              className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300"
+              title="שבוע קודם"
+            >
+              <ChevronRight size={20} />
+            </button>
+            <div className="px-4 flex items-center gap-2 border-x border-zinc-200 dark:border-zinc-700 mx-1">
+              <Calendar size={16} className="text-indigo-500" />
+              <span className="text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">
+                {format(startDate, 'dd/MM')} - {format(weekDays[6], 'dd/MM')}
+              </span>
+            </div>
+            <button 
+              onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) setWeekOffset(prev => prev + 1); }}
+              className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300"
+              title="שבוע הבא"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            {weekOffset !== 0 && (
+              <button 
+                onClick={() => setWeekOffset(0)}
+                className="mr-2 px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-600 transition-colors"
+              >
+                היום
+              </button>
+            )}
           </div>
         </div>
         
@@ -178,8 +215,8 @@ export const Reservists = () => {
           onClick={handleSave}
           disabled={isSaving || !hasChanges}
           className={clsx(
-            "w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95",
-            (isSaving || !hasChanges) ? "bg-zinc-400 dark:bg-zinc-800 cursor-not-allowed opacity-50" : "bg-indigo-600 hover:bg-indigo-700 text-white"
+            "w-full lg:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95",
+            (isSaving || !hasChanges) ? "bg-zinc-400 dark:bg-zinc-800 cursor-not-allowed opacity-50 text-zinc-100" : "bg-indigo-600 hover:bg-indigo-700 text-white"
           )}
         >
           {isSaving ? <Clock className="animate-spin" size={20} /> : <Save size={20} />}

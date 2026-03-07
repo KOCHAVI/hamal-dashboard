@@ -17,9 +17,19 @@ interface AppState {
   
   // Actions
   addCampaign: (name: string, startDate: string) => Promise<void>;
+  updateCampaign: (id: string, name: string) => Promise<void>;
+  deleteCampaign: (id: string) => Promise<void>;
+  
   addHoT: (fullName: string, phoneNumber: string) => Promise<void>;
+  
   addTeamWithHoT: (teamName: string, hotFullName: string, hotPhoneNumber: string, campaignId: string) => Promise<void>;
+  updateTeam: (id: string, name: string, campaignId: string) => Promise<void>;
+  deleteTeam: (id: string) => Promise<void>;
+  
   addPersonnel: (data: any) => Promise<void>;
+  updatePersonnel: (id: string, data: any) => Promise<void>;
+  deletePersonnel: (id: string) => Promise<void>;
+  
   updatePersonnelStatus: (id: string, status: PresenceStatus, note?: string) => Promise<void>;
   addShift: (personnelIds: string[], startTime: string, endTime: string) => Promise<void>;
   addShiftsBulk: (shifts: { personnelIds: string[], startTime: string, endTime: string }[]) => Promise<void>;
@@ -109,13 +119,41 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addCampaign = async (name: string, startDate: string) => {
-    await fetch('/api/campaigns', {
+    if (!activeUser) return;
+    const res = await fetch('/api/campaigns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, start_date: startDate }),
+      body: JSON.stringify({ actor_id: activeUser.id, name, start_date: startDate }),
     });
-    await refreshData();
-    showNotification('המבצע נוסף בהצלחה', 'success');
+    if (res.ok) {
+      await refreshData();
+      showNotification('המבצע נוסף בהצלחה', 'success');
+    } else {
+      const err = await res.json();
+      showNotification(err.error || 'שגיאה בהוספת מבצע', 'error');
+    }
+  };
+
+  const updateCampaign = async (id: string, name: string) => {
+    if (!activeUser) return;
+    const res = await fetch(`/api/campaigns/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor_id: activeUser.id, name }),
+    });
+    if (res.ok) {
+      await refreshData();
+      showNotification('המבצע עודכן', 'success');
+    }
+  };
+
+  const deleteCampaign = async (id: string) => {
+    if (!activeUser) return;
+    const res = await fetch(`/api/campaigns/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await refreshData();
+      showNotification('המבצע נמחק', 'success');
+    }
   };
 
   const addHoT = async (fullName: string, phoneNumber: string) => {
@@ -135,10 +173,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addTeamWithHoT = async (teamName: string, hotFullName: string, hotPhoneNumber: string, campaignId: string) => {
+    if (!activeUser) return;
     const res = await fetch('/api/teams/with-hot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamName, hotFullName, hotPhoneNumber, campaignId }),
+      body: JSON.stringify({ actor_id: activeUser.id, teamName, hotFullName, hotPhoneNumber, campaignId }),
     });
     if (!res.ok) {
       const error = await res.json();
@@ -147,6 +186,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     await refreshData();
     showNotification('הצוות הוקם בהצלחה', 'success');
+  };
+
+  const updateTeam = async (id: string, name: string, campaignId: string) => {
+    if (!activeUser) return;
+    const res = await fetch(`/api/teams/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor_id: activeUser.id, name, campaignId }),
+    });
+    if (res.ok) {
+      await refreshData();
+      showNotification('הצוות עודכן', 'success');
+    }
+  };
+
+  const deleteTeam = async (id: string) => {
+    if (!activeUser) return;
+    const res = await fetch(`/api/teams/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await refreshData();
+      showNotification('הצוות נמחק', 'success');
+    }
   };
 
   const addPersonnel = async (data: any) => {
@@ -163,6 +224,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     await refreshData();
     showNotification('החייל נוסף בהצלחה', 'success');
+  };
+
+  const updatePersonnel = async (id: string, data: any) => {
+    if (!activeUser) return;
+    const res = await fetch(`/api/personnel/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, actor_id: activeUser.id }),
+    });
+    if (res.ok) {
+      await refreshData();
+      showNotification('פרטי החייל עודכנו', 'success');
+    }
+  };
+
+  const deletePersonnel = async (id: string) => {
+    if (!activeUser) return;
+    const res = await fetch(`/api/personnel/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      await refreshData();
+      showNotification('החייל נמחק מהמערכת', 'success');
+    } else {
+      const err = await res.json();
+      showNotification(err.error || 'שגיאה במחיקה', 'error');
+    }
   };
 
   const updatePersonnelStatus = async (id: string, status: PresenceStatus, note?: string) => {
@@ -288,9 +374,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       notification,
       showNotification,
       addCampaign,
+      updateCampaign,
+      deleteCampaign,
       addHoT,
       addTeamWithHoT,
+      updateTeam,
+      deleteTeam,
       addPersonnel,
+      updatePersonnel,
+      deletePersonnel,
       updatePersonnelStatus,
       addShift,
       addShiftsBulk,
