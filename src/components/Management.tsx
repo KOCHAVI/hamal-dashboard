@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store';
-import { Plus, Users, Flag, UserPlus, ShieldCheck, Phone } from 'lucide-react';
+import { Plus, Users, Flag, UserPlus, ShieldCheck, Phone, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
 export const Management = () => {
@@ -11,9 +11,15 @@ export const Management = () => {
     addCampaign, 
     addTeamWithHoT, 
     addPersonnel, 
-    activeUser 
+    activeUser,
+    showNotification
   } = useAppContext();
   
+  // Loading states
+  const [isAddingCampaign, setIsAddingCampaign] = useState(false);
+  const [isAddingTeam, setIsAddingTeam] = useState(false);
+  const [isAddingSoldier, setIsAddingSoldier] = useState(false);
+
   // Campaign Form
   const [newCampaignName, setNewCampaignName] = useState('');
   
@@ -36,33 +42,50 @@ export const Management = () => {
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCampaignName) return;
-    await addCampaign(newCampaignName, new Date().toISOString());
-    setNewCampaignName('');
+    if (!newCampaignName || isAddingCampaign) return;
+    
+    setIsAddingCampaign(true);
+    try {
+      await addCampaign(newCampaignName, new Date().toISOString());
+      setNewCampaignName('');
+    } finally {
+      setIsAddingCampaign(false);
+    }
   };
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamData.teamName || !teamData.hotFullName || !teamData.hotPhoneNumber || !teamData.campaignId) {
-      alert('יש למלא את כל שדות הצוות וראש הצוות');
+    if (!teamData.teamName || !teamData.hotFullName || !teamData.hotPhoneNumber || !teamData.campaignId || isAddingTeam) {
+      if (!isAddingTeam) showNotification('יש למלא את כל שדות הצוות וראש הצוות', 'error');
       return;
     }
-    await addTeamWithHoT(teamData.teamName, teamData.hotFullName, teamData.hotPhoneNumber, teamData.campaignId);
-    setTeamData({ teamName: '', hotFullName: '', hotPhoneNumber: '', campaignId: '' });
+    
+    setIsAddingTeam(true);
+    try {
+      await addTeamWithHoT(teamData.teamName, teamData.hotFullName, teamData.hotPhoneNumber, teamData.campaignId);
+      setTeamData({ teamName: '', hotFullName: '', hotPhoneNumber: '', campaignId: '' });
+    } finally {
+      setIsAddingTeam(false);
+    }
   };
 
   const handleAddSoldier = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeUser) return;
+    if (!activeUser || isAddingSoldier) return;
     
     const teamToAssign = activeUser.isAdmin ? soldierData.team_id : activeUser.teamId;
     if (!teamToAssign) {
-      alert('נא לבחור צוות לחייל');
+      showNotification('נא לבחור צוות לחייל', 'error');
       return;
     }
 
-    await addPersonnel({ ...soldierData, team_id: teamToAssign });
-    setSoldierData({ full_name: '', team_id: '', phone_number: '', is_reservist: false, is_abroad: false });
+    setIsAddingSoldier(true);
+    try {
+      await addPersonnel({ ...soldierData, team_id: teamToAssign });
+      setSoldierData({ full_name: '', team_id: '', phone_number: '', is_reservist: false, is_abroad: false });
+    } finally {
+      setIsAddingSoldier(false);
+    }
   };
 
   const isAdmin = activeUser?.isAdmin;
@@ -85,15 +108,19 @@ export const Management = () => {
                 </div>
                 <form onSubmit={handleCreateCampaign} className="flex flex-col sm:flex-row gap-2">
                   <input 
+                    disabled={isAddingCampaign}
                     type="text" 
                     placeholder="שם המבצע"
-                    className="flex-1 p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    className="flex-1 p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50"
                     value={newCampaignName}
                     onChange={e => setNewCampaignName(e.target.value)}
                     required
                   />
-                  <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-colors">
-                    הוסף
+                  <button 
+                    disabled={isAddingCampaign}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-colors disabled:bg-zinc-400 flex justify-center items-center gap-2"
+                  >
+                    {isAddingCampaign ? <Loader2 className="animate-spin" size={18} /> : 'הוסף'}
                   </button>
                 </form>
                 <div className="mt-4 space-y-2 max-h-32 overflow-y-auto">
@@ -115,14 +142,16 @@ export const Management = () => {
                 <form onSubmit={handleCreateTeam} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input 
+                      disabled={isAddingTeam}
                       placeholder="שם הצוות"
-                      className="p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                      className="p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all disabled:opacity-50"
                       value={teamData.teamName}
                       onChange={e => setTeamData({...teamData, teamName: e.target.value})}
                       required
                     />
                     <select 
-                      className="p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                      disabled={isAddingTeam}
+                      className="p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all disabled:opacity-50"
                       value={teamData.campaignId}
                       onChange={e => setTeamData({...teamData, campaignId: e.target.value})}
                       required
@@ -134,23 +163,28 @@ export const Management = () => {
                   <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 space-y-3 transition-colors">
                     <div className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">פרטי ראש צוות</div>
                     <input 
+                      disabled={isAddingTeam}
                       placeholder="שם מלא של המפקד"
-                      className="w-full p-3 border border-emerald-200 dark:border-emerald-800 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none transition-all"
+                      className="w-full p-3 border border-emerald-200 dark:border-emerald-800 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none transition-all disabled:opacity-50"
                       value={teamData.hotFullName}
                       onChange={e => setTeamData({...teamData, hotFullName: e.target.value})}
                       required
                     />
                     <input 
+                      disabled={isAddingTeam}
                       placeholder="מספר טלפון"
-                      className="w-full p-3 border border-emerald-200 dark:border-emerald-800 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none text-left transition-all"
+                      className="w-full p-3 border border-emerald-200 dark:border-emerald-800 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none text-left transition-all disabled:opacity-50"
                       dir="ltr"
                       value={teamData.hotPhoneNumber}
                       onChange={e => setTeamData({...teamData, hotPhoneNumber: e.target.value})}
                       required
                     />
                   </div>
-                  <button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all shadow-md">
-                    הקם צוות חדש
+                  <button 
+                    disabled={isAddingTeam}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold transition-all shadow-md disabled:bg-zinc-400 flex justify-center items-center gap-2"
+                  >
+                    {isAddingTeam ? <Loader2 className="animate-spin" size={18} /> : 'הקם צוות חדש'}
                   </button>
                 </form>
               </div>
@@ -173,8 +207,9 @@ export const Management = () => {
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">שם מלא</label>
                 <input 
+                  disabled={isAddingSoldier}
                   placeholder="שם החייל"
-                  className="w-full p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                  className="w-full p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50"
                   value={soldierData.full_name}
                   onChange={e => setSoldierData({...soldierData, full_name: e.target.value})}
                   required
@@ -183,8 +218,9 @@ export const Management = () => {
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">טלפון</label>
                 <input 
+                  disabled={isAddingSoldier}
                   placeholder="מספר טלפון"
-                  className="w-full p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-left transition-all"
+                  className="w-full p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-left transition-all disabled:opacity-50"
                   dir="ltr"
                   value={soldierData.phone_number}
                   onChange={e => setSoldierData({...soldierData, phone_number: e.target.value})}
@@ -196,7 +232,8 @@ export const Management = () => {
                 <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest px-1">צוות</label>
                 {isAdmin ? (
                   <select 
-                    className="w-full p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    disabled={isAddingSoldier}
+                    className="w-full p-3 border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all disabled:opacity-50"
                     value={soldierData.team_id}
                     onChange={e => setSoldierData({...soldierData, team_id: e.target.value})}
                     required
@@ -214,6 +251,7 @@ export const Management = () => {
               <div className="flex flex-wrap items-center gap-4 sm:gap-6 px-4 md:col-span-2 lg:col-span-3 py-3 bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl border border-zinc-100 dark:border-zinc-800 transition-colors">
                 <div className="flex items-center gap-3">
                   <input 
+                    disabled={isAddingSoldier}
                     type="checkbox"
                     id="isSoldierReservist"
                     className="w-4 h-4 text-indigo-600 rounded dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600"
@@ -225,6 +263,7 @@ export const Management = () => {
 
                 <div className="flex items-center gap-3">
                   <input 
+                    disabled={isAddingSoldier}
                     type="checkbox"
                     id="isSoldierAbroad"
                     className="w-4 h-4 text-purple-600 rounded dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600"
@@ -236,13 +275,13 @@ export const Management = () => {
               </div>
 
               <button 
-                disabled={!isHoTForSelectedTeam}
+                disabled={!isHoTForSelectedTeam || isAddingSoldier}
                 className={clsx(
-                  "py-4 rounded-xl font-bold text-white shadow-lg transition-all md:col-span-2 lg:col-span-3 transform active:scale-[0.99]",
-                  isHoTForSelectedTeam ? "bg-indigo-600 hover:bg-indigo-700" : "bg-zinc-300 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 cursor-not-allowed grayscale"
+                  "py-4 rounded-xl font-bold text-white shadow-lg transition-all md:col-span-2 lg:col-span-3 transform active:scale-[0.99] flex justify-center items-center gap-2",
+                  (isHoTForSelectedTeam && !isAddingSoldier) ? "bg-indigo-600 hover:bg-indigo-700" : "bg-zinc-300 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 cursor-not-allowed grayscale"
                 )}
               >
-                {isHoTForSelectedTeam ? "שמור חייל במערכת" : "אין הרשאה לצוות זה"}
+                {isAddingSoldier ? <Loader2 className="animate-spin" size={20} /> : (isHoTForSelectedTeam ? "שמור חייל במערכת" : "אין הרשאה לצוות זה")}
               </button>
             </form>
           </div>

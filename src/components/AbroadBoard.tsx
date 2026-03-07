@@ -7,10 +7,11 @@ import { he } from 'date-fns/locale';
 import clsx from 'clsx';
 
 export const AbroadBoard = () => {
-  const { personnel, updatePersonnelStatus, teams } = useAppContext();
+  const { personnel, updatePersonnelStatus, teams, showNotification } = useAppContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [newNote, setNewNote] = useState('');
+  const [isUpdatingNote, setIsUpdatingNote] = useState(false);
 
   const abroadPersonnel = personnel.filter(p => p.currentStatus === PresenceStatus.ABROAD);
   
@@ -19,16 +20,22 @@ export const AbroadBoard = () => {
   );
 
   const handleUpdateNote = async (id: string) => {
-    if (!newNote.trim()) return;
-    await updatePersonnelStatus(id, PresenceStatus.ABROAD, newNote);
-    setUpdatingId(null);
-    setNewNote('');
+    if (!newNote.trim() || isUpdatingNote) return;
+    
+    setIsUpdatingNote(true);
+    try {
+      await updatePersonnelStatus(id, PresenceStatus.ABROAD, newNote);
+      setUpdatingId(null);
+      setNewNote('');
+      showNotification('הסטטוס עודכן בהצלחה', 'success');
+    } finally {
+      setIsUpdatingNote(false);
+    }
   };
 
   const handleReturn = async (id: string) => {
-    if (window.confirm('האם לאשר את חזרת החייל לארץ? (סטטוס ישתנה ל"בית")')) {
-      await updatePersonnelStatus(id, PresenceStatus.HOME, '');
-    }
+    await updatePersonnelStatus(id, PresenceStatus.HOME, '');
+    showNotification('החייל סומן כמי שחזר לארץ', 'success');
   };
 
   return (
@@ -45,7 +52,7 @@ export const AbroadBoard = () => {
             </p>
           </div>
           
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <input 
               type="text" 
               placeholder="חיפוש חייל..."
@@ -58,7 +65,7 @@ export const AbroadBoard = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8">
+      <div className="flex-1 overflow-y-auto p-4 lg:p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPersonnel.map((person) => {
             const teamName = teams.find(t => t.id === person.teamId)?.name || 'ללא צוות';
@@ -89,7 +96,8 @@ export const AbroadBoard = () => {
                   {updatingId === person.id ? (
                     <div className="space-y-2">
                       <input 
-                        className="w-full p-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20"
+                        disabled={isUpdatingNote}
+                        className="w-full p-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 dark:text-white rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50"
                         autoFocus
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
@@ -98,12 +106,17 @@ export const AbroadBoard = () => {
                       />
                       <div className="flex gap-2">
                         <button 
+                          disabled={isUpdatingNote}
                           onClick={() => handleUpdateNote(person.id)}
-                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-1.5 rounded-md transition-colors"
-                        >עדכן</button>
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-1.5 rounded-md transition-colors disabled:bg-zinc-400 flex justify-center items-center gap-2"
+                        >
+                          {isUpdatingNote && <RefreshCw className="animate-spin" size={12} />}
+                          עדכן
+                        </button>
                         <button 
+                          disabled={isUpdatingNote}
                           onClick={() => setUpdatingId(null)}
-                          className="flex-1 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold py-1.5 rounded-md transition-colors"
+                          className="flex-1 bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-bold py-1.5 rounded-md transition-colors disabled:opacity-50"
                         >ביטול</button>
                       </div>
                     </div>

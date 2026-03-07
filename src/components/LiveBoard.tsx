@@ -154,7 +154,17 @@ export const LiveBoard = () => {
                 isLongList ? 'grid grid-cols-2 gap-2 content-start' : 'flex flex-col gap-2'
               )}
             >
-              {columnPersonnel.map((person, index) => {
+              {columnPersonnel
+                .slice()
+                .sort((a, b) => {
+                  if (statusId !== PresenceStatus.HOME) return 0;
+                  const aMissing = shifts.some(s => s.personnelIds?.includes(a.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
+                  const bMissing = shifts.some(s => s.personnelIds?.includes(b.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
+                  if (aMissing && !bMissing) return -1;
+                  if (!aMissing && bMissing) return 1;
+                  return 0;
+                })
+                .map((person, index) => {
                 const hasActiveShift = shifts.some(s => 
                   s.personnelIds?.includes(person.id) && 
                   new Date(s.startTime) <= now && 

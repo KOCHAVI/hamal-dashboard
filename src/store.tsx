@@ -12,6 +12,8 @@ interface AppState {
   isLoading: boolean;
   darkMode: boolean;
   toggleDarkMode: () => void;
+  notification: { message: string; type: 'success' | 'error' | 'info' } | null;
+  showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
   
   // Actions
   addCampaign: (name: string, startDate: string) => Promise<void>;
@@ -47,6 +49,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   const [isLoading, setIsLoading] = useState(true);
 
   // Auto-save user to storage
@@ -60,7 +69,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Dark Mode side effect
   useEffect(() => {
-    console.log('Dark mode changed:', darkMode);
     if (darkMode) {
       document.documentElement.classList.add('dark');
       document.documentElement.style.colorScheme = 'dark';
@@ -92,7 +100,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     // Polling: Refresh data every 3 seconds to keep clients in sync
     const interval = setInterval(() => {
-      // Only refresh if we aren't already loading and the window is visible
       if (!document.hidden) {
         refreshData();
       }
@@ -108,6 +115,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify({ name, start_date: startDate }),
     });
     await refreshData();
+    showNotification('המבצע נוסף בהצלחה', 'success');
   };
 
   const addHoT = async (fullName: string, phoneNumber: string) => {
@@ -118,11 +126,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify({ actor_id: activeUser.id, full_name: fullName, phoneNumber }),
     });
     if (res.ok) {
-      alert(`ראש צוות ${fullName} נוצר בהצלחה!`);
       await refreshData();
+      showNotification(`ראש צוות ${fullName} נוצר בהצלחה!`, 'success');
     } else {
       const error = await res.json();
-      alert(error.error || 'שגיאה ביצירת ראש צוות');
+      showNotification(error.error || 'שגיאה ביצירת ראש צוות', 'error');
     }
   };
 
@@ -134,10 +142,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(error.error || 'Failed to create team');
+      showNotification(error.error || 'שגיאה בהקמת צוות', 'error');
       return;
     }
     await refreshData();
+    showNotification('הצוות הוקם בהצלחה', 'success');
   };
 
   const addPersonnel = async (data: any) => {
@@ -149,14 +158,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(error.error || 'Failed to add personnel');
+      showNotification(error.error || 'שגיאה בהוספת חייל', 'error');
       return;
     }
     await refreshData();
+    showNotification('החייל נוסף בהצלחה', 'success');
   };
 
   const updatePersonnelStatus = async (id: string, status: PresenceStatus, note?: string) => {
-    // 1. Optimistic Update: Update local state immediately
     const previousPersonnel = [...personnel];
     const now = new Date().toISOString();
     
@@ -171,17 +180,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify({ status, note }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to update server');
-      }
-      
-      // Optionally refresh to ensure everything is in sync
+      if (!res.ok) throw new Error('Failed to update server');
       await refreshData();
     } catch (err) {
-      // 2. Rollback on failure
-      console.error('Rollback status update:', err);
       setPersonnel(previousPersonnel);
-      alert('שגיאה בעדכון הסטטוס בשרת. מבצע שחזור...');
+      showNotification('שגיאה בעדכון הסטטוס. מבצע שחזור...', 'error');
     }
   };
 
@@ -201,10 +204,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(error.error || 'Failed to add shifts');
+      showNotification(error.error || 'שגיאה בהוספת משמרות', 'error');
       return;
     }
     await refreshData();
+    showNotification('המשמרות נוספו בהצלחה', 'success');
   };
 
   const syncShifts = async (additions: any[], removals: any[]) => {
@@ -220,10 +224,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(error.error || 'Failed to sync shifts');
+      showNotification(error.error || 'שגיאה בסנכרון הסידור', 'error');
       return;
     }
     await refreshData();
+    showNotification('הסידור סונכרן בהצלחה', 'success');
   };
 
   const addShift = async (personnelIds: string[], startTime: string, endTime: string) => {
@@ -244,10 +249,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(error.error || 'Failed to update shift');
+      showNotification(error.error || 'שגיאה בעדכון המשמרת', 'error');
       return;
     }
     await refreshData();
+    showNotification('המשמרת עודכנה', 'success');
   };
 
   const deleteShift = async (id: string) => {
@@ -257,10 +263,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     });
     if (!res.ok) {
       const error = await res.json();
-      alert(error.error || 'Failed to delete shift');
+      showNotification(error.error || 'שגיאה במחיקת המשמרת', 'error');
       return;
     }
     await refreshData();
+    showNotification('המשמרת נמחקה', 'success');
   };
 
   const toggleSirenMode = () => setSirenMode(prev => !prev);
@@ -278,6 +285,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       darkMode,
       toggleDarkMode,
+      notification,
+      showNotification,
       addCampaign,
       addHoT,
       addTeamWithHoT,
