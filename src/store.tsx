@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
 import { Campaign, Team, Personnel, PresenceStatus, Shift, ReservistCallUp } from './types';
 
 interface AppState {
@@ -9,6 +9,8 @@ interface AppState {
   sirenMode: boolean;
   activeUser: Personnel | null; // Simulated "logged in" user
   setActiveUser: (user: Personnel | null) => void;
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
   isLoading: boolean;
   darkMode: boolean;
   toggleDarkMode: () => void;
@@ -19,17 +21,13 @@ interface AppState {
   addCampaign: (name: string, startDate: string) => Promise<void>;
   updateCampaign: (id: string, name: string) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
-  
   addHoT: (fullName: string, phoneNumber: string) => Promise<void>;
-  
   addTeamWithHoT: (teamName: string, hotFullName: string, hotPhoneNumber: string, campaignId: string) => Promise<void>;
   updateTeam: (id: string, name: string, campaignId: string) => Promise<void>;
   deleteTeam: (id: string) => Promise<void>;
-  
   addPersonnel: (data: any) => Promise<void>;
   updatePersonnel: (id: string, data: any) => Promise<void>;
   deletePersonnel: (id: string) => Promise<void>;
-  
   updatePersonnelStatus: (id: string, status: PresenceStatus, note?: string) => Promise<void>;
   addShift: (personnelIds: string[], startTime: string, endTime: string) => Promise<void>;
   addShiftsBulk: (shifts: { personnelIds: string[], startTime: string, endTime: string }[]) => Promise<void>;
@@ -54,6 +52,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('activeTab') || 'board';
+  });
+
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -68,7 +70,31 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
-  // Auto-save user to storage
+  // --- TAB GUARD LOGIC ---
+  useEffect(() => {
+    if (!activeUser) return;
+
+    const isGuest = activeUser.id === 'guest';
+    const isAdmin = activeUser.isAdmin;
+    const isHoT = activeUser.isHoT;
+
+    // Tabs that only Admins can see
+    const adminOnlyTabs = ['sadach', 'abroad'];
+    // Tabs that Admins or HoTs can see
+    const staffTabs = ['analytics', 'management', 'reservists'];
+
+    if (isGuest) {
+      if (adminOnlyTabs.includes(activeTab) || staffTabs.includes(activeTab)) {
+        setActiveTab('board');
+      }
+    } else if (isHoT && !isAdmin) {
+      if (adminOnlyTabs.includes(activeTab)) {
+        setActiveTab('board');
+      }
+    }
+  }, [activeUser, activeTab]);
+
+  // Auto-save state to storage
   useEffect(() => {
     if (activeUser) {
       localStorage.setItem('activeUser', JSON.stringify(activeUser));
@@ -76,6 +102,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem('activeUser');
     }
   }, [activeUser]);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
 
   // Dark Mode side effect
   useEffect(() => {
@@ -107,14 +137,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     refreshData();
-
-    // Polling: Refresh data every 3 seconds to keep clients in sync
     const interval = setInterval(() => {
-      if (!document.hidden) {
-        refreshData();
-      }
+      if (!document.hidden) refreshData();
     }, 3000);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -254,18 +279,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const updatePersonnelStatus = async (id: string, status: PresenceStatus, note?: string) => {
     const previousPersonnel = [...personnel];
     const now = new Date().toISOString();
-    
-    setPersonnel(prev => prev.map(p => 
-      p.id === id ? { ...p, currentStatus: status, statusNote: note, statusUpdatedAt: now } : p
-    ));
-
+    setPersonnel(prev => prev.map(p => p.id === id ? { ...p, currentStatus: status, statusNote: note, statusUpdatedAt: now } : p));
     try {
       const res = await fetch(`/api/personnel/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, note }),
       });
-
       if (!res.ok) throw new Error('Failed to update server');
       await refreshData();
     } catch (err) {
@@ -279,14 +299,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const res = await fetch('/api/shifts/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        actor_id: activeUser.id, 
-        shifts: shiftsData.map(s => ({
-          personnel_ids: s.personnelIds,
-          start_time: s.startTime,
-          end_time: s.endTime
-        }))
-      }),
+      body: JSON.stringify({ actor_id: activeUser.id, shifts: shiftsData.map(s => ({ personnel_ids: s.personnelIds, start_time: s.startTime, end_time: s.endTime })) }),
     });
     if (!res.ok) {
       const error = await res.json();
@@ -302,11 +315,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const res = await fetch('/api/shifts/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        actor_id: activeUser.id, 
-        additions,
-        removals
-      }),
+      body: JSON.stringify({ actor_id: activeUser.id, additions, removals }),
     });
     if (!res.ok) {
       const error = await res.json();
@@ -326,12 +335,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const res = await fetch(`/api/shifts/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        actor_id: activeUser.id,
-        start_time: startTime, 
-        end_time: endTime,
-        personnel_ids: personnelIds
-      }),
+      body: JSON.stringify({ actor_id: activeUser.id, start_time: startTime, end_time: endTime, personnel_ids: personnelIds }),
     });
     if (!res.ok) {
       const error = await res.json();
@@ -344,9 +348,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteShift = async (id: string) => {
     if (!activeUser) return;
-    const res = await fetch(`/api/shifts/${id}?actor_id=${activeUser.id}`, {
-      method: 'DELETE',
-    });
+    const res = await fetch(`/api/shifts/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
     if (!res.ok) {
       const error = await res.json();
       showNotification(error.error || 'שגיאה במחיקת המשמרת', 'error');
@@ -361,36 +363,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      campaigns,
-      teams,
-      personnel,
-      shifts,
-      sirenMode,
-      activeUser,
-      setActiveUser,
-      isLoading,
-      darkMode,
-      toggleDarkMode,
-      notification,
-      showNotification,
-      addCampaign,
-      updateCampaign,
-      deleteCampaign,
-      addHoT,
-      addTeamWithHoT,
-      updateTeam,
-      deleteTeam,
-      addPersonnel,
-      updatePersonnel,
-      deletePersonnel,
-      updatePersonnelStatus,
-      addShift,
-      addShiftsBulk,
-      syncShifts,
-      updateShift,
-      deleteShift,
-      toggleSirenMode,
-      refreshData,
+      campaigns, teams, personnel, shifts, sirenMode, activeUser, setActiveUser, activeTab, setActiveTab, isLoading, darkMode, toggleDarkMode, notification, showNotification,
+      addCampaign, updateCampaign, deleteCampaign, addHoT, addTeamWithHoT, updateTeam, deleteTeam, addPersonnel, updatePersonnel, deletePersonnel, updatePersonnelStatus, addShift, addShiftsBulk, syncShifts, updateShift, deleteShift, toggleSirenMode, refreshData,
     }}>
       {children}
     </AppContext.Provider>

@@ -40,8 +40,7 @@ const NotificationToast = () => {
 };
 
 const MainContent = () => {
-  const { sirenMode, activeUser } = useAppContext();
-  const [activeTab, setActiveTab] = useState('board');
+  const { sirenMode, activeUser, activeTab, setActiveTab } = useAppContext();
 
   if (!activeUser) {
     return <Login />;
