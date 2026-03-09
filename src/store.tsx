@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { Campaign, Team, Personnel, PresenceStatus, Shift, ReservistCallUp } from './types';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { Campaign, Team, Personnel, PresenceStatus, Shift } from './types';
+import Pusher from 'pusher-js';
 
 interface AppState {
   campaigns: Campaign[];
@@ -7,7 +8,7 @@ interface AppState {
   personnel: Personnel[];
   shifts: Shift[];
   sirenMode: boolean;
-  activeUser: Personnel | null; // Simulated "logged in" user
+  activeUser: Personnel | null;
   setActiveUser: (user: Personnel | null) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -16,8 +17,6 @@ interface AppState {
   toggleDarkMode: () => void;
   notification: { message: string; type: 'success' | 'error' | 'info' } | null;
   showNotification: (message: string, type?: 'success' | 'error' | 'info') => void;
-  
-  // Actions
   addCampaign: (name: string, startDate: string) => Promise<void>;
   updateCampaign: (id: string, name: string) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
@@ -46,76 +45,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [sirenMode, setSirenMode] = useState(false);
-  
   const [activeUser, setActiveUser] = useState<Personnel | null>(() => {
     const saved = localStorage.getItem('activeUser');
     return saved ? JSON.parse(saved) : null;
   });
-
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem('activeTab') || 'board';
-  });
-
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'board');
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
-
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const [isLoading, setIsLoading] = useState(true);
-
-  // --- TAB GUARD LOGIC ---
   useEffect(() => {
-    if (!activeUser) return;
-
-    const isGuest = activeUser.id === 'guest';
-    const isAdmin = activeUser.isAdmin;
-    const isHoT = activeUser.isHoT;
-
-    // Tabs that only Admins can see
-    const adminOnlyTabs = ['sadach', 'abroad'];
-    // Tabs that Admins or HoTs can see
-    const staffTabs = ['analytics', 'management', 'reservists'];
-
-    if (isGuest) {
-      if (adminOnlyTabs.includes(activeTab) || staffTabs.includes(activeTab)) {
-        setActiveTab('board');
-      }
-    } else if (isHoT && !isAdmin) {
-      if (adminOnlyTabs.includes(activeTab)) {
-        setActiveTab('board');
-      }
-    }
-  }, [activeUser, activeTab]);
-
-  // Auto-save state to storage
-  useEffect(() => {
-    if (activeUser) {
-      localStorage.setItem('activeUser', JSON.stringify(activeUser));
-    } else {
-      localStorage.removeItem('activeUser');
-    }
+    if (activeUser) localStorage.setItem('activeUser', JSON.stringify(activeUser));
+    else localStorage.removeItem('activeUser');
   }, [activeUser]);
 
-  useEffect(() => {
-    localStorage.setItem('activeTab', activeTab);
-  }, [activeTab]);
+  useEffect(() => { localStorage.setItem('activeTab', activeTab); }, [activeTab]);
 
-  // Dark Mode side effect
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
-      document.documentElement.style.colorScheme = 'dark';
       localStorage.setItem('darkMode', 'true');
     } else {
       document.documentElement.classList.remove('dark');
-      document.documentElement.style.colorScheme = 'light';
       localStorage.setItem('darkMode', 'false');
     }
   }, [darkMode]);
@@ -128,238 +87,117 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setTeams(data.teams);
       setPersonnel(data.personnel);
       setShifts(data.shifts);
-    } catch (err) {
-      console.error('Failed to fetch data:', err);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (err) { console.error('Failed to fetch data:', err); }
+    finally { setIsLoading(false); }
   };
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(() => {
-      if (!document.hidden) refreshData();
-    }, 3000);
-    return () => clearInterval(interval);
+
+    // PUSHER REAL-TIME SUBSCRIPTION
+    const pusherKey = import.meta.env.VITE_PUSHER_KEY;
+    const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
+
+    if (pusherKey && pusherCluster) {
+      const pusher = new Pusher(pusherKey, { cluster: pusherCluster });
+      const channel = pusher.subscribe('hamal-channel');
+      
+      channel.bind('data-updated', () => {
+        // Only refresh if the window is visible to save resources
+        if (!document.hidden) {
+          refreshData();
+        }
+      });
+
+      return () => {
+        channel.unbind_all();
+        channel.unsubscribe();
+        pusher.disconnect();
+      };
+    } else {
+      // Fallback to polling if Pusher is not configured
+      const interval = setInterval(() => { if (!document.hidden) refreshData(); }, 5000);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   const addCampaign = async (name: string, startDate: string) => {
-    if (!activeUser) return;
-    const res = await fetch('/api/campaigns', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, name, start_date: startDate }),
-    });
-    if (res.ok) {
-      await refreshData();
-      showNotification('המבצע נוסף בהצלחה', 'success');
-    } else {
-      const err = await res.json();
-      showNotification(err.error || 'שגיאה בהוספת מבצע', 'error');
-    }
+    const res = await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name, start_date: startDate }) });
+    if (res.ok) showNotification('המבצע נוסף', 'success');
   };
 
   const updateCampaign = async (id: string, name: string) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/campaigns/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, name }),
-    });
-    if (res.ok) {
-      await refreshData();
-      showNotification('המבצע עודכן', 'success');
-    }
+    const res = await fetch(`/api/campaigns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name }) });
+    if (res.ok) showNotification('המבצע עודכן', 'success');
   };
 
   const deleteCampaign = async (id: string) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/campaigns/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
-    if (res.ok) {
-      await refreshData();
-      showNotification('המבצע נמחק', 'success');
-    }
+    const res = await fetch(`/api/campaigns/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
+    if (res.ok) showNotification('המבצע נמחק', 'success');
   };
 
   const addHoT = async (fullName: string, phoneNumber: string) => {
-    if (!activeUser) return;
-    const res = await fetch('/api/hots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, full_name: fullName, phoneNumber }),
-    });
-    if (res.ok) {
-      await refreshData();
-      showNotification(`ראש צוות ${fullName} נוצר בהצלחה!`, 'success');
-    } else {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה ביצירת ראש צוות', 'error');
-    }
+    const res = await fetch('/api/hots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, full_name: fullName, phoneNumber }) });
+    if (res.ok) showNotification(`ראש צוות ${fullName} נוצר`, 'success');
   };
 
   const addTeamWithHoT = async (teamName: string, hotFullName: string, hotPhoneNumber: string, campaignId: string) => {
-    if (!activeUser) return;
-    const res = await fetch('/api/teams/with-hot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, teamName, hotFullName, hotPhoneNumber, campaignId }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה בהקמת צוות', 'error');
-      return;
-    }
-    await refreshData();
-    showNotification('הצוות הוקם בהצלחה', 'success');
+    const res = await fetch('/api/teams/with-hot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, teamName, hotFullName, hotPhoneNumber, campaignId }) });
+    if (res.ok) showNotification('הצוות הוקם', 'success');
   };
 
   const updateTeam = async (id: string, name: string, campaignId: string) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/teams/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, name, campaignId }),
-    });
-    if (res.ok) {
-      await refreshData();
-      showNotification('הצוות עודכן', 'success');
-    }
+    const res = await fetch(`/api/teams/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name, campaignId }) });
+    if (res.ok) showNotification('הצוות עודכן', 'success');
   };
 
   const deleteTeam = async (id: string) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/teams/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
-    if (res.ok) {
-      await refreshData();
-      showNotification('הצוות נמחק', 'success');
-    }
+    const res = await fetch(`/api/teams/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
+    if (res.ok) showNotification('הצוות נמחק', 'success');
   };
 
   const addPersonnel = async (data: any) => {
-    if (!activeUser) return;
-    const res = await fetch('/api/personnel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, actor_id: activeUser.id }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה בהוספת חייל', 'error');
-      return;
-    }
-    await refreshData();
-    showNotification('החייל נוסף בהצלחה', 'success');
+    const res = await fetch('/api/personnel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, actor_id: activeUser?.id }) });
+    if (res.ok) showNotification('החייל נוסף', 'success');
   };
 
   const updatePersonnel = async (id: string, data: any) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/personnel/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, actor_id: activeUser.id }),
-    });
-    if (res.ok) {
-      await refreshData();
-      showNotification('פרטי החייל עודכנו', 'success');
-    }
+    const res = await fetch(`/api/personnel/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, actor_id: activeUser?.id }) });
+    if (res.ok) showNotification('פרטי החייל עודכנו', 'success');
   };
 
   const deletePersonnel = async (id: string) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/personnel/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
-    if (res.ok) {
-      await refreshData();
-      showNotification('החייל נמחק מהמערכת', 'success');
-    } else {
-      const err = await res.json();
-      showNotification(err.error || 'שגיאה במחיקה', 'error');
-    }
+    const res = await fetch(`/api/personnel/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
+    if (res.ok) showNotification('החייל נמחק', 'success');
   };
 
   const updatePersonnelStatus = async (id: string, status: PresenceStatus, note?: string) => {
-    const previousPersonnel = [...personnel];
+    const prev = [...personnel];
     const now = new Date().toISOString();
-    setPersonnel(prev => prev.map(p => p.id === id ? { ...p, currentStatus: status, statusNote: note, statusUpdatedAt: now } : p));
+    setPersonnel(p => p.map(x => x.id === id ? { ...x, currentStatus: status, statusNote: note, statusUpdatedAt: now } : x));
     try {
-      const res = await fetch(`/api/personnel/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, note }),
-      });
-      if (!res.ok) throw new Error('Failed to update server');
-      await refreshData();
+      const res = await fetch(`/api/personnel/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note }) });
+      if (!res.ok) throw new Error();
     } catch (err) {
-      setPersonnel(previousPersonnel);
-      showNotification('שגיאה בעדכון הסטטוס. מבצע שחזור...', 'error');
+      setPersonnel(prev);
+      showNotification('שגיאה בעדכון הסטטוס', 'error');
     }
-  };
-
-  const addShiftsBulk = async (shiftsData: { personnelIds: string[], startTime: string, endTime: string }[]) => {
-    if (!activeUser) return;
-    const res = await fetch('/api/shifts/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, shifts: shiftsData.map(s => ({ personnel_ids: s.personnelIds, start_time: s.startTime, end_time: s.endTime })) }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה בהוספת משמרות', 'error');
-      return;
-    }
-    await refreshData();
-    showNotification('המשמרות נוספו בהצלחה', 'success');
   };
 
   const syncShifts = async (additions: any[], removals: any[]) => {
-    if (!activeUser) return;
-    const res = await fetch('/api/shifts/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, additions, removals }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה בסנכרון הסידור', 'error');
-      return;
-    }
-    await refreshData();
-    showNotification('הסידור סונכרן בהצלחה', 'success');
+    const res = await fetch('/api/shifts/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, additions, removals }) });
+    if (res.ok) showNotification('הסידור סונכרן', 'success');
   };
 
-  const addShift = async (personnelIds: string[], startTime: string, endTime: string) => {
-    await addShiftsBulk([{ personnelIds, startTime, endTime }]);
+  const addShiftsBulk = async (shiftsData: any[]) => {
+    await fetch('/api/shifts/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, shifts: shiftsData }) });
   };
 
-  const updateShift = async (id: string, startTime: string, endTime: string, personnelIds?: string[]) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/shifts/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actor_id: activeUser.id, start_time: startTime, end_time: endTime, personnel_ids: personnelIds }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה בעדכון המשמרת', 'error');
-      return;
-    }
-    await refreshData();
-    showNotification('המשמרת עודכנה', 'success');
-  };
-
-  const deleteShift = async (id: string) => {
-    if (!activeUser) return;
-    const res = await fetch(`/api/shifts/${id}?actor_id=${activeUser.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const error = await res.json();
-      showNotification(error.error || 'שגיאה במחיקת המשמרת', 'error');
-      return;
-    }
-    await refreshData();
-    showNotification('המשמרת נמחקה', 'success');
-  };
-
-  const toggleSirenMode = () => setSirenMode(prev => !prev);
-  const toggleDarkMode = () => setDarkMode(prev => !prev);
+  const addShift = async (pids: string[], start: string, end: string) => { await addShiftsBulk([{ personnelIds: pids, startTime: start, endTime: end }]); };
+  const updateShift = async (id: string, start: string, end: string, pids?: string[]) => { await fetch(`/api/shifts/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, start_time: start, end_time: end, personnel_ids: pids }) }); };
+  const deleteShift = async (id: string) => { await fetch(`/api/shifts/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' }); };
+  const toggleSirenMode = () => setSirenMode(p => !prev);
+  const toggleDarkMode = () => setDarkMode(p => !p);
 
   return (
     <AppContext.Provider value={{
