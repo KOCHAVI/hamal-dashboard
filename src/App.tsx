@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { AppProvider, useAppContext } from './store';
 import { Sidebar } from './components/Sidebar';
 import { LiveBoard } from './components/LiveBoard';
@@ -15,7 +15,7 @@ import { AbroadBoard } from './components/AbroadBoard';
 import { Login } from './components/Login';
 import { SADACH } from './components/SADACH';
 import { Analytics } from './components/Analytics';
-import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, Loader2, Shield } from 'lucide-react';
 import clsx from 'clsx';
 
 const NotificationToast = () => {
@@ -39,11 +39,33 @@ const NotificationToast = () => {
   );
 };
 
+const LoadingScreen = () => (
+  <div className="fixed inset-0 z-[300] bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center transition-colors duration-500">
+    <div className="relative">
+      <div className="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full animate-pulse" />
+      <div className="relative bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col items-center gap-6">
+        <div className="relative">
+          <Shield size={64} className="text-indigo-600 dark:text-indigo-400 animate-pulse" />
+          <Loader2 size={80} className="absolute -inset-2 text-zinc-200 dark:text-zinc-800 animate-spin" strokeWidth={1} />
+        </div>
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tighter">פיקוד חמ"ל</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium animate-pulse">טוען נתונים מהשרת...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const MainContent = () => {
-  const { sirenMode, activeUser, activeTab, setActiveTab } = useAppContext();
+  const { sirenMode, activeUser, activeTab, setActiveTab, isLoading } = useAppContext();
 
   if (!activeUser) {
     return <Login />;
+  }
+
+  if (isLoading) {
+    return <LoadingScreen />;
   }
 
   if (sirenMode) {
