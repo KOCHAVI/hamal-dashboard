@@ -84,7 +84,7 @@ export const Management = () => {
   }).filter(p => p.fullName.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
-    <div className="h-full overflow-y-auto bg-zinc-50 dark:bg-zinc-950 p-4 lg:p-8 text-right transition-colors duration-200" dir="rtl">
+    <div className="h-full overflow-y-auto bg-transparent p-4 lg:p-8 text-right transition-colors duration-200" dir="rtl">
       <div className={clsx("mx-auto space-y-8 transition-all", isAdmin ? "max-w-6xl" : "max-w-4xl")}>
         <h2 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">ניהול כוח אדם</h2>
 
@@ -92,7 +92,7 @@ export const Management = () => {
           {isAdmin && (
             <>
               {/* 1. Campaign Management */}
-              <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+              <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
                 <h3 className="text-lg font-bold dark:text-white mb-4 flex items-center gap-2">
                   <Flag className="text-indigo-500" size={20} /> ניהול מבצעים
                 </h3>
@@ -111,7 +111,7 @@ export const Management = () => {
               </div>
 
               {/* 2. Team Creation */}
-              <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+              <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
                 <h3 className="text-lg font-bold dark:text-white mb-4 flex items-center gap-2">
                   <ShieldCheck className="text-emerald-500" size={20} /> הקמת צוות ומינוי מפקד
                 </h3>
@@ -134,7 +134,7 @@ export const Management = () => {
           )}
 
           {/* 3. Add Soldier */}
-          <div className={clsx("bg-white dark:bg-zinc-900 p-6 lg:p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors lg:col-span-2")}>
+          <div className={clsx("bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-6 lg:p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors lg:col-span-2")}>
             <h3 className="text-xl font-bold dark:text-white mb-6 flex items-center gap-3">
               <UserPlus className="text-indigo-500" size={24} /> הוספת חייל חדש לצוות
             </h3>
@@ -158,7 +158,7 @@ export const Management = () => {
           </div>
 
           {/* 4. Personnel List (Edit/Delete) */}
-          <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col transition-colors">
+          <div className="lg:col-span-2 bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col transition-colors">
             <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-50/50 dark:bg-zinc-900/50">
               <h3 className="text-xl font-bold dark:text-white">רשימת כוח אדם ({manageablePersonnel.length})</h3>
               <div className="relative w-full sm:w-64">

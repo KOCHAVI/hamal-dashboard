@@ -15,13 +15,32 @@
 
 body {
   font-family: var(--font-sans);
-  @apply bg-zinc-50 text-zinc-900 transition-colors duration-200;
+  @apply transition-colors duration-300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  min-height: 100vh;
+
+  /* --- PROFESSIONAL CLASSIC BACKGROUND (LIGHT) --- */
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.03) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.03) 0px, transparent 50%),
+    /* Tactical Dot Grid */
+    radial-gradient(circle at 1px 1px, rgba(99, 102, 241, 0.08) 1px, transparent 0);
+  background-size: 100% 100%, 100% 100%, 32px 32px;
+  background-attachment: fixed;
 }
 
 .dark body {
-  @apply bg-zinc-950 text-zinc-100;
+  /* --- PROFESSIONAL CLASSIC BACKGROUND (DARK) --- */
+  background-color: #09090b;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+    /* Tactical Dot Grid */
+    radial-gradient(circle at 1px 1px, rgba(99, 102, 241, 0.15) 1px, transparent 0);
+  background-size: 100% 100%, 100% 100%, 32px 32px;
 }
 
 /* Custom scrollbar for a cleaner look */
@@ -48,4 +67,18 @@ body {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   @apply bg-zinc-600;
+}
+
+/* Global cursor pointers for interactivity */
+button, 
+select, 
+input[type="checkbox"], 
+input[type="radio"],
+.cursor-pointer {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
 }

@@ -56,8 +56,8 @@ export const Analytics = () => {
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
   return (
-    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-right transition-colors duration-200" dir="rtl">
-      <div className="p-8 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 transition-colors">
+    <div className="h-full flex flex-col bg-transparent text-right transition-colors duration-200" dir="rtl">
+      <div className="p-8 border-b border-zinc-200 dark:border-zinc-800 bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md transition-colors">
         <h2 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight flex items-center gap-3">
           <BarChart3 className="text-indigo-600 dark:text-indigo-400" size={32} />
           מרכז נתונים ואנליטיקה
@@ -70,7 +70,7 @@ export const Analytics = () => {
       <div className="flex-1 overflow-y-auto p-8 space-y-8">
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4 transition-colors">
+          <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4 transition-colors">
             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl text-indigo-600 dark:text-indigo-400">
               <Users size={24} />
             </div>
@@ -80,7 +80,7 @@ export const Analytics = () => {
             </div>
           </div>
           
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4 transition-colors">
+          <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4 transition-colors">
             <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl text-emerald-600 dark:text-emerald-400">
               <Clock size={24} />
             </div>
@@ -90,7 +90,7 @@ export const Analytics = () => {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4 transition-colors">
+          <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4 transition-colors">
             <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl text-amber-600 dark:text-amber-400">
               <TrendingUp size={24} />
             </div>
@@ -105,7 +105,7 @@ export const Analytics = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Chart 1: Bar Chart */}
-          <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+          <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
             <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
               <Clock size={20} className="text-indigo-500" />
               כמות משמרות (טופ 10)
@@ -142,7 +142,7 @@ export const Analytics = () => {
 
           {/* Chart 2: Pie or Stats */}
           {isAdmin ? (
-            <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
+            <div className="bg-white/40 dark:bg-zinc-900/20 backdrop-blur-md p-8 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-sm transition-colors">
               <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
                 <PieIcon size={20} className="text-emerald-500" />
                 חלוקת חיילים לפי צוותים

@@ -16,12 +16,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const isAdmin = activeUser?.isAdmin;
   const isHoT = activeUser?.isHoT;
 
-  const hasMyReservists = useMemo(() => {
-    if (isAdmin) return true;
-    if (!isHoT) return false;
-    return personnel.some(p => p.teamId === activeUser.teamId && p.isReservist);
-  }, [personnel, isAdmin, isHoT, activeUser]);
-
   const hasAnyoneAbroad = useMemo(() => {
     return personnel.some(p => p.currentStatus === 'בחו"ל');
   }, [personnel]);
@@ -29,7 +23,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const tabs = [
     { id: 'board', label: 'לוח נוכחות', icon: LayoutDashboard, show: true },
     { id: 'sadach', label: 'סד"כ בסיס', icon: Shield, show: isAdmin },
-    { id: 'reservists', label: 'מילואים', icon: Users, show: isAdmin || hasMyReservists },
     { id: 'abroad', label: 'חו"ל', icon: Plane, show: isAdmin && hasAnyoneAbroad },
     { id: 'scheduler', label: 'סידור משמרות', icon: CalendarDays, show: true },
     { id: 'analytics', label: 'אנליטיקה', icon: BarChart3, show: isAdmin || isHoT },
@@ -39,11 +32,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   return (
     <>
       {/* Mobile Header */}
-      <div className="lg:hidden h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 fixed top-0 left-0 right-0 z-[60]" dir="rtl">
+      <div className="lg:hidden h-16 bg-zinc-900/80 dark:bg-black/40 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-4 fixed top-0 left-0 right-0 z-[60]" dir="rtl">
         <button onClick={() => setIsOpen(true)} className="p-2 text-zinc-400 hover:text-white transition-colors">
           <Menu size={24} />
         </button>
-        <h1 className="text-lg font-bold text-white tracking-tight">פיקוד חמ"ל</h1>
+        <h1 className="text-lg font-bold text-white tracking-tight text-center flex-1 ml-8">פיקוד חמ"ל</h1>
         <div className="flex gap-2">
           <button onClick={toggleDarkMode} className="p-2 text-zinc-400">
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -61,28 +54,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
 
       {/* Sidebar Container */}
       <div className={clsx(
-        "fixed lg:static inset-y-0 right-0 w-64 bg-zinc-900 text-zinc-300 flex flex-col h-full border-l border-zinc-800 transition-transform duration-300 z-[80] lg:translate-x-0 shadow-2xl lg:shadow-none",
+        "fixed lg:static inset-y-0 right-0 w-64 bg-zinc-100/80 dark:bg-black/20 backdrop-blur-xl text-zinc-600 dark:text-zinc-300 flex flex-col h-full border-l border-zinc-200 dark:border-white/5 transition-transform duration-300 z-[80] lg:translate-x-0 shadow-2xl lg:shadow-none",
         isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"
       )}>
-        <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+        <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">פיקוד חמ"ל</h1>
-            <p className="text-xs text-zinc-500 mt-1 uppercase tracking-wider">ניהול כוח אדם</p>
+            <h1 className="text-xl font-black text-zinc-900 dark:text-white tracking-tighter">פיקוד חמ"ל</h1>
+            <p className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest font-bold">מערכת ניהול</p>
           </div>
           <div className="flex gap-1">
-            <button onClick={() => setIsOpen(false)} className="lg:hidden p-1 text-zinc-500 hover:text-white">
+            <button onClick={() => setIsOpen(false)} className="lg:hidden p-1 text-zinc-500 hover:text-zinc-900 dark:hover:text-white">
               <CloseIcon size={20} />
             </button>
-            <button onClick={toggleDarkMode} className="hidden lg:block p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white transition-colors">
-              {darkMode ? <Sun size={14} /> : <Moon size={14} />}
+            <button onClick={toggleDarkMode} className="hidden lg:block p-1.5 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all">
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
             </button>
-            <button onClick={() => refreshData()} className="p-1 hover:bg-zinc-800 rounded text-zinc-500 hover:text-white transition-colors">
-              <RefreshCw size={14} />
+            <button onClick={() => refreshData()} className="p-1.5 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-all">
+              <RefreshCw size={16} />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 py-4 flex flex-col gap-1 px-3">
+        <div className="flex-1 py-6 flex flex-col gap-1 px-3">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -94,34 +87,38 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
                   setIsOpen(false);
                 }}
                 className={clsx(
-                  'flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-medium',
-                  isActive ? 'bg-zinc-800 text-white shadow-sm' : 'hover:bg-zinc-800/50 hover:text-white'
+                  'flex items-center gap-3 px-4 py-3 rounded-2xl transition-all text-sm font-bold',
+                  isActive 
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' 
+                    : 'text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-white'
                 )}
               >
-                <Icon size={16} className={isActive ? 'text-indigo-400' : 'text-zinc-500'} />
+                <Icon size={18} className={isActive ? 'text-white' : 'text-zinc-400 dark:text-zinc-500'} />
                 {tab.label}
               </button>
             );
           })}
         </div>
 
-        <div className="p-4 border-t border-zinc-800 space-y-4">
+        <div className="p-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
           {activeUser && (
-            <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-xl border border-zinc-700/50">
+            <div className="flex items-center justify-between p-3 bg-white/50 dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5 shadow-sm">
               <div className="flex items-center gap-2">
-                <UserCircle className="text-indigo-400" size={18} />
+                <div className="p-2 bg-indigo-500/10 rounded-xl">
+                  <UserCircle className="text-indigo-600 dark:text-indigo-400" size={20} />
+                </div>
                 <div className="text-right">
-                  <div className="text-xs font-bold text-white leading-none">{activeUser.fullName}</div>
-                  <div className="text-[10px] text-zinc-500 mt-1">
+                  <div className="text-xs font-black text-zinc-900 dark:text-white leading-none mb-1">{activeUser.fullName}</div>
+                  <div className="text-[9px] text-zinc-500 dark:text-zinc-500 uppercase tracking-tighter">
                     {isAdmin ? 'מנהל מערכת' : isGuest ? 'אורח' : 'ראש צוות'}
                   </div>
                 </div>
               </div>
               <button 
                 onClick={() => { setActiveUser(null); setIsOpen(false); }}
-                className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                className="p-2 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-400/10 rounded-xl transition-all"
               >
-                <LogOut size={14} />
+                <LogOut size={16} />
               </button>
             </div>
           )}
@@ -130,10 +127,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             <button
               onClick={() => { toggleSirenMode(); setIsOpen(false); }}
               className={clsx(
-                'w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold uppercase tracking-wider transition-all text-xs',
+                'w-full flex items-center justify-center gap-2 px-4 py-4 rounded-[1.5rem] font-black uppercase tracking-widest transition-all text-[10px] shadow-lg',
                 sirenMode 
-                  ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] animate-pulse' 
-                  : 'bg-zinc-800 text-red-500 hover:bg-red-950/30 border border-red-900/30'
+                  ? 'bg-rose-600 text-white shadow-rose-600/40 animate-pulse' 
+                  : 'bg-zinc-200 dark:bg-zinc-800/50 text-rose-600 dark:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/30'
               )}
             >
               <AlertTriangle size={16} />
