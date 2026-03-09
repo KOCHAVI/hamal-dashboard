@@ -43,20 +43,55 @@ export const Scheduler = () => {
 
   const hasChanges = useMemo(() => JSON.stringify(normalizeDraft(initialDraft)) !== JSON.stringify(normalizeDraft(draft)), [initialDraft, draft]);
 
+  // ISOLATION LOGIC: Load existing shifts into draft
   useEffect(() => {
     if (hasChanges) return;
     const newDraft: Record<string, string[]> = {};
+    
+    // Determine which team's shifts this user is allowed to see/edit
+    const targetTeamId = isAdmin ? selectedTeamId : activeUser?.teamId;
+
     shifts.forEach(shift => {
       const start = parseISO(shift.startTime), startHour = start.getHours();
       let type: 'day' | 'night' | null = (startHour === 9) ? 'day' : (startHour === 21 ? 'night' : null);
+      
       if (type) {
-        const key = getSlotKey(start, type), validPids = (shift.personnelIds || []);
-        if (validPids.length > 0) newDraft[key] = [...(newDraft[key] || []), ...validPids];
+        const key = getSlotKey(start, type);
+        
+        // Filter the personnel inside this shift based on the user's scope
+        const visiblePids = (shift.personnelIds || []).filter(pid => {
+          const person = personnel.find(p => p.id === pid);
+          if (!person) return false;
+          
+          // Staff Isolation: HoT only sees their team. Admin sees 'all' or specific filtered team.
+          if (isStaff) {
+            if (isAdmin) {
+              if (selectedTeamId !== 'all' && person.teamId !== selectedTeamId) return false;
+              return true;
+            }
+            // HoT is strictly isolated to their own team
+            return person.teamId === activeUser?.teamId;
+          }
+          
+          // Guest View: respects global filters (Team/Search/Reservist)
+          if (isGuest) {
+            if (selectedTeamId !== 'all' && person.teamId !== selectedTeamId) return false;
+            if (onlyReservists && !person.isReservist) return false;
+            if (searchQuery && !person.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+            return true;
+          }
+          
+          return true;
+        });
+
+        if (visiblePids.length > 0) {
+          newDraft[key] = [...(newDraft[key] || []), ...visiblePids];
+        }
       }
     });
     setInitialDraft(normalizeDraft(newDraft));
     setDraft(normalizeDraft(newDraft));
-  }, [shifts, hasChanges, startDate]);
+  }, [shifts, hasChanges, startDate, selectedTeamId, searchQuery, onlyReservists, personnel, isAdmin, isGuest, isStaff, activeUser]);
 
   const isSlotPast = (date: Date, type: 'day' | 'night') => {
     const now = new Date(), slotEnd = new Date(date);
@@ -112,22 +147,24 @@ export const Scheduler = () => {
           <div>
             <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">{isGuest ? 'סידור משמרות' : 'סידור עבודה'}</h2>
             <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">
-              צפייה בסידור: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{selectedTeamId === 'all' ? 'כל היחידה' : (teams.find(t => t.id === selectedTeamId)?.name)}</span>
+              צפייה בסידור: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{isAdmin ? (selectedTeamId === 'all' ? 'כל היחידה' : (teams.find(t => t.id === selectedTeamId)?.name)) : (teams.find(t => t.id === activeUser?.teamId)?.name || 'הצוות שלי')}</span>
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={() => setOnlyReservists(!onlyReservists)} className={clsx("flex items-center gap-2 px-4 py-2 rounded-2xl border font-bold text-[11px] transition-all shadow-sm", onlyReservists ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900/50 dark:text-amber-400" : "bg-zinc-50 border-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-400")}>
+            <button onClick={() => setOnlyReservists(!onlyReservists)} className={clsx("flex items-center gap-2 px-4 py-2 rounded-2xl border font-bold text-[11px] transition-all shadow-sm", onlyReservists ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-emerald-900/50 dark:text-amber-400" : "bg-zinc-50 border-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-400")}>
               <Users size={14}/> {onlyReservists ? 'מציג מילואים' : 'כל החיילים'}
             </button>
 
-            <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-800/50 p-1.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50">
-              <Filter size={16} className="text-zinc-400 mr-2" />
-              <select className="bg-transparent text-sm font-bold outline-none p-1 min-w-[140px]" value={selectedTeamId} onChange={(e) => { if (!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו?')) setSelectedTeamId(e.target.value); }}>
-                <option value="all">כל הצוותים</option>
-                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-800/50 p-1.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50">
+                <Filter size={16} className="text-zinc-400 mr-2" />
+                <select className="bg-transparent text-sm font-bold outline-none p-1 min-w-[140px]" value={selectedTeamId} onChange={(e) => { if (!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו?')) setSelectedTeamId(e.target.value); }}>
+                  <option value="all">כל הצוותים</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            )}
 
             {isStaff && (
               <div className="flex items-center gap-1 group relative">
@@ -163,7 +200,7 @@ export const Scheduler = () => {
       </div>
 
       <div className="flex-1 overflow-auto p-4 lg:p-8">
-        <div className="min-w-[1000px] lg:min-w-0 bg-white/40 dark:bg-zinc-900/20 backdrop-blur-xl rounded-3xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm overflow-hidden flex flex-col transition-colors">
+        <div className="min-w-[1000px] lg:min-w-0 bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col transition-colors">
           <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
             {weekDays.map((day, i) => (
               <div key={i} className="p-4 text-center border-l border-zinc-200 dark:border-zinc-800 last:border-0">
@@ -183,42 +220,41 @@ export const Scheduler = () => {
               const renderSlotPersonnel = (selectedPids: string[], type: 'day' | 'night') => {
                 const currentSlotKey = type === 'day' ? dayKey : nightKey;
                 
-                // For Guests: only consider people already in the shift
-                // For Staff: consider their team + anyone in the shift
-                let baseList = personnel;
+                // For selection list (the candidates you can click to add)
+                let candidateList = [];
                 if (isStaff) {
-                  baseList = personnel.filter(p => {
+                  candidateList = personnel.filter(p => {
                     if (p.isAdmin) return false;
-                    const isInShift = selectedPids.includes(p.id);
-                    if (isInShift) return true; // Always show people in shift
                     if (isAdmin) {
                       if (selectedTeamId !== 'all' && p.teamId !== selectedTeamId) return false;
                     } else {
                       if (p.teamId !== activeUser?.teamId) return false;
                       if (p.currentStatus === PresenceStatus.ABROAD) return false;
                     }
+                    // Apply common filters
+                    if (onlyReservists && !p.isReservist) return false;
+                    if (searchQuery && !p.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                    // Consecutive guard (if not already selected)
+                    if (isConsecutiveGuardEnabled && !selectedPids.includes(p.id)) {
+                      const prevPids = type === 'day' ? pToD : pToN;
+                      if (prevPids.includes(p.id)) return false;
+                    }
                     return true;
                   });
-                } else {
-                  baseList = personnel.filter(p => selectedPids.includes(p.id));
                 }
 
-                const filtered = baseList.filter(p => {
-                  // GLOBAL FILTERS (Reservists, Search, Team)
-                  if (onlyReservists && !p.isReservist) return false;
-                  if (searchQuery && !p.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-                  if (selectedTeamId !== 'all' && p.teamId !== selectedTeamId) return false;
-                  
-                  // CONSECUTIVE GUARD (Staff only, only for unselected people)
-                  if (isStaff && isConsecutiveGuardEnabled && !selectedPids.includes(p.id)) {
-                    const prevPids = type === 'day' ? pToD : pToN;
-                    if (prevPids.includes(p.id)) return false;
-                  }
-                  
+                // For assigned list (the people who are already in the shift)
+                // HoTs only see their own soldiers in this view
+                const assignedList = personnel.filter(p => {
+                  if (!selectedPids.includes(p.id)) return false;
+                  if (isStaff && !isAdmin && p.teamId !== activeUser?.teamId) return false;
                   return true;
                 });
 
-                return filtered.sort((a,b) => {
+                // Final Merge & Sort
+                const allVisible = isStaff ? Array.from(new Set([...candidateList, ...assignedList])) : assignedList;
+
+                return allVisible.sort((a,b) => {
                   const aS = selectedPids.includes(a.id), bS = selectedPids.includes(b.id);
                   if(aS && !bS) return -1; if(!aS && bS) return 1; return a.fullName.localeCompare(b.fullName, 'he');
                 }).map(p => (

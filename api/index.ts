@@ -44,16 +44,25 @@ app.use(async (req, res, next) => { await initDb(); next(); });
 
 const verifyAccess = async (actorId: string, teamId?: string) => {
   try {
-    const actorRes = await client.execute({ sql: 'SELECT id, is_admin, is_hot FROM personnel WHERE id = ?', args: [actorId] });
+    const actorRes = await client.execute({ sql: 'SELECT id, is_admin, is_hot, team_id FROM personnel WHERE id = ?', args: [actorId] });
     const actor = actorRes.rows[0] as any;
     if (!actor) return false;
     if (actor.is_admin === 1) return true;
+    
+    // If we're checking a specific team
     if (teamId) {
+      if (actor.is_hot === 1 && actor.team_id === teamId) return true;
+      // Also check if they are the leader recorded in the teams table (extra safety)
       const teamRes = await client.execute({ sql: 'SELECT leader_id FROM teams WHERE id = ?', args: [teamId] });
       return teamRes.rows[0]?.leader_id === actorId;
     }
     return false;
   } catch (e) { return false; }
+};
+
+const getTeamOfPersonnel = async (personnelId: string) => {
+  const res = await client.execute({ sql: 'SELECT team_id FROM personnel WHERE id = ?', args: [personnelId] });
+  return res.rows[0]?.team_id as string | undefined;
 };
 
 // --- DATA FETCH ---
@@ -108,8 +117,6 @@ app.post('/api/teams/with-hot', async (req, res) => {
       { sql: 'INSERT INTO teams (id, name, leader_id, campaign_id) VALUES (?, ?, ?, ?)', args: [teamId, teamName, hotId, campaignId] },
       { sql: 'UPDATE personnel SET team_id = ? WHERE id = ?', args: [teamId, hotId] }
     ], "write");
-    
-    // Notify about new team and new HoT
     notifyClients('team-upserted', { id: teamId, name: teamName, leaderId: hotId, campaignId });
     notifyClients('personnel-upserted', { id: hotId, fullName: hotFullName, phoneNumber: hotPhoneNumber, isHoT: true, teamId, statusUpdatedAt: now, currentStatus: 'בית' });
     res.status(201).json({ teamId, hotId });
@@ -127,17 +134,15 @@ app.post('/api/personnel', async (req, res) => {
       sql: `INSERT INTO personnel (id, full_name, team_id, is_reservist, phone_number, current_status, status_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [id, full_name, team_id, is_reservist ? 1 : 0, phone_number || null, initialStatus, now]
     });
-    const newPerson = { id, fullName: full_name, teamId: team_id, isReservist: !!is_reservist, phoneNumber: phone_number, currentStatus: initialStatus, statusUpdatedAt: now };
-    notifyClients('personnel-upserted', newPerson);
+    notifyClients('personnel-upserted', { id, fullName: full_name, teamId: team_id, isReservist: !!is_reservist, phoneNumber: phone_number, currentStatus: initialStatus, statusUpdatedAt: now });
     res.status(201).json({ id });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
 app.patch('/api/personnel/:id', async (req, res) => {
   const { actor_id, fullName, phoneNumber, teamId, isReservist, isAbroad } = req.body;
-  const currentRes = await client.execute({ sql: 'SELECT team_id FROM personnel WHERE id = ?', args: [req.params.id] });
-  const current = currentRes.rows[0] as any;
-  if (!(await verifyAccess(actor_id, current?.team_id))) return res.status(403).json({ error: 'Unauthorized' });
+  const currentTeam = await getTeamOfPersonnel(req.params.id);
+  if (!(await verifyAccess(actor_id, currentTeam))) return res.status(403).json({ error: 'Unauthorized' });
   try {
     const initialStatus = isAbroad ? 'בחו"ל' : undefined;
     const sql = `UPDATE personnel SET full_name = ?, phone_number = ?, team_id = ?, is_reservist = ? ${initialStatus ? ', current_status = ?' : ''} WHERE id = ?`;
@@ -145,21 +150,17 @@ app.patch('/api/personnel/:id', async (req, res) => {
     if (initialStatus) args.push(initialStatus);
     args.push(req.params.id);
     await client.execute({ sql, args });
-    
-    // Fetch updated version to notify
     const updated = await client.execute({ sql: 'SELECT * FROM personnel WHERE id = ?', args: [req.params.id] });
     const row = updated.rows[0] as any;
     notifyClients('personnel-upserted', { id: row.id, fullName: row.full_name, teamId: row.team_id, isReservist: !!row.is_reservist, isHoT: !!row.is_hot, isAdmin: !!row.is_admin, phoneNumber: row.phone_number, currentStatus: row.current_status, statusUpdatedAt: row.status_updated_at, statusNote: row.status_note });
-    
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/personnel/:id', async (req, res) => {
   const { actor_id } = req.query;
-  const currentRes = await client.execute({ sql: 'SELECT team_id, is_admin FROM personnel WHERE id = ?', args: [req.params.id] });
-  const current = currentRes.rows[0] as any;
-  if (current?.is_admin || !(await verifyAccess(actor_id as string, current?.team_id))) return res.status(403).json({ error: 'Unauthorized' });
+  const currentTeam = await getTeamOfPersonnel(req.params.id);
+  if (!(await verifyAccess(actor_id as string, currentTeam))) return res.status(403).json({ error: 'Unauthorized' });
   try {
     await client.execute({ sql: 'DELETE FROM personnel WHERE id = ?', args: [req.params.id] });
     notifyClients('personnel-deleted', { id: req.params.id });
@@ -173,20 +174,32 @@ app.patch('/api/personnel/:id/status', async (req, res) => {
   const now = new Date().toISOString();
   try {
     await client.execute({ sql: 'UPDATE personnel SET current_status = ?, status_note = ?, status_updated_at = ? WHERE id = ?', args: [status, note || null, now, id] });
-    // Partial update notification
     notifyClients('personnel-status-updated', { id, currentStatus: status, statusNote: note, statusUpdatedAt: now });
     res.json({ id, status, note, statusUpdatedAt: now });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// SECURE SYNC ENDPOINT
 app.post('/api/shifts/sync', async (req, res) => {
   const { actor_id, additions, removals } = req.body;
+  if (!actor_id) return res.status(400).json({ error: 'Missing actor_id' });
+
   try {
     const batchQueries: any[] = [];
     const findShiftId = async (start: string, end: string) => {
       const res = await client.execute({ sql: 'SELECT id FROM shifts WHERE datetime(start_time) = datetime(?) AND datetime(end_time) = datetime(?)', args: [start, end] });
       return res.rows[0]?.id as string | undefined;
     };
+
+    // SECURITY CHECK: Verify each person being moved
+    const allMoves = [...(additions || []), ...(removals || [])];
+    for (const move of allMoves) {
+      const teamId = await getTeamOfPersonnel(move.personnel_id);
+      if (!(await verifyAccess(actor_id, teamId))) {
+        return res.status(403).json({ error: `Unauthorized to modify soldier ${move.personnel_id}` });
+      }
+    }
+
     if (removals) {
       for (const item of removals) {
         const sid = await findShiftId(item.start_time, item.end_time);
@@ -202,8 +215,6 @@ app.post('/api/shifts/sync', async (req, res) => {
     }
     if (batchQueries.length > 0) await client.batch(batchQueries, "write");
     await client.execute('DELETE FROM shifts WHERE id NOT IN (SELECT DISTINCT shift_id FROM shift_personnel)');
-    
-    // For shifts, we still do a full refresh trigger because the many-to-many logic is complex
     notifyClients('data-updated', { reason: 'shifts-synced' });
     res.status(200).json({ message: 'Sync successful' });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
