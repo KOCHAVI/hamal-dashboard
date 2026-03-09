@@ -53,7 +53,7 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; hasActiveShift
             {...provided.dragHandleProps}
             style={provided.draggableProps.style}
             className={clsx(
-              'p-2 px-3 rounded-xl border transition-all relative flex flex-col gap-0 h-10 justify-center',
+              'p-2 px-3 rounded-xl border transition-all relative flex flex-col gap-1 min-h-[52px] justify-center',
               snapshot.isDragging 
                 ? 'shadow-2xl ring-2 ring-indigo-500 scale-105 z-[9999] bg-white dark:bg-zinc-800 border-indigo-500 opacity-100 w-[320px]' 
                 : 'hover:border-zinc-300 dark:hover:border-zinc-600',
@@ -68,17 +68,26 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; hasActiveShift
               isDragDisabled && !snapshot.isDragging ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
             )}
           >
-            {/* FIX: Icons now have rounded-tl-xl to match the card and avoid the sharp corner overflow glitch */}
             <div className="absolute top-0 left-0 flex flex-col overflow-hidden rounded-tl-xl">
               {isMissing && <div className="bg-rose-500 text-white p-1 rounded-br-lg animate-pulse"><PhoneCall size={8} /></div>}
               {shouldGoHome && <div className="bg-indigo-500 text-white p-1 rounded-br-lg"><LogOut size={8} /></div>}
               {isCriticalDelay && !isMissing && <div className="bg-orange-500 text-white p-1 rounded-br-lg"><AlertCircle size={8} /></div>}
             </div>
 
-            <div className="flex items-center justify-between gap-2">
+            {/* ROW 1: FULL NAME & RESERVIST BADGE */}
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-[12px] truncate leading-none text-zinc-900 dark:text-white">{person.fullName}</h4>
+              {person.isReservist && <span className="px-1 py-0.5 rounded text-[6px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 uppercase shrink-0">מילואים</span>}
+            </div>
+
+            {/* ROW 2: INFO, ALERTS, TIMER */}
+            <div className="flex items-center justify-between gap-2 border-t border-zinc-100 dark:border-zinc-800/50 pt-1">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <h4 className="font-bold text-[11px] truncate leading-none text-zinc-900 dark:text-white">{person.fullName}</h4>
-                {person.isReservist && <span className="px-1 py-0.5 rounded text-[6px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 uppercase shrink-0">מילואים</span>}
+                <div className="flex items-center gap-1 text-[9px] text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                  <Phone size={9} />
+                  <span dir="ltr" className="tabular-nums">{person.phoneNumber}</span>
+                </div>
+                
                 {alertLabel && (
                   <span className={clsx(
                     "text-[7px] font-black uppercase tracking-tighter px-1 rounded-md whitespace-nowrap",
@@ -88,18 +97,14 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; hasActiveShift
                   </span>
                 )}
               </div>
-              
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center gap-1 text-[9px] text-indigo-600 dark:text-indigo-400 font-bold">
-                  <Phone size={9} />
-                  <span dir="ltr" className="tabular-nums">{person.phoneNumber}</span>
-                </div>
-                <div className="flex items-center gap-1 text-[8px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-tighter whitespace-nowrap border-r border-zinc-100 dark:border-zinc-800 pr-2">
-                  {(isDelayed || isCriticalDelay || isMissing) && <Clock size={8} className={clsx(isCriticalDelay || isMissing ? "text-rose-500" : "text-amber-500")} />}
-                  <span>{formatDistanceToNow(new Date(person.statusUpdatedAt), { locale: he, addSuffix: false })}</span>
-                </div>
+
+              <div className="flex items-center gap-1 text-[8px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-tighter whitespace-nowrap border-r border-zinc-100 dark:border-zinc-800 pr-2">
+                {(isDelayed || isCriticalDelay || isMissing) && <Clock size={8} className={clsx(isCriticalDelay || isMissing ? "text-rose-500" : "text-amber-500")} />}
+                <span>{formatDistanceToNow(new Date(person.statusUpdatedAt), { locale: he, addSuffix: false })}</span>
               </div>
             </div>
+
+            {person.statusNote && <div className="text-[8px] text-zinc-400 dark:text-zinc-500 italic truncate pt-0.5">• {person.statusNote}</div>}
           </div>
         );
 
