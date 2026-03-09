@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../store';
 import { format, addDays, startOfWeek, setHours, setMinutes, parseISO, addHours, addWeeks, subWeeks } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Sun, Moon, Save, X, AlertTriangle, Clock, ChevronRight, ChevronLeft, Calendar } from 'lucide-react';
+import { Sun, Moon, Save, X, AlertTriangle, Clock, ChevronRight, ChevronLeft, Calendar, Filter } from 'lucide-react';
 import { PresenceStatus } from '../types';
 import clsx from 'clsx';
 
@@ -20,11 +20,12 @@ const normalizeDraft = (rawDraft: Record<string, string[]>) => {
 };
 
 export const Scheduler = () => {
-  const { personnel, shifts, syncShifts, activeUser, showNotification } = useAppContext();
+  const { personnel, shifts, syncShifts, activeUser, teams, showNotification } = useAppContext();
   const isAdmin = activeUser?.isAdmin;
   
-  // Navigation State
+  // States
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
 
   const startDate = useMemo(() => {
     const base = startOfWeek(new Date(), { weekStartsOn: 0 });
@@ -36,12 +37,16 @@ export const Scheduler = () => {
   [startDate]);
 
   const myPersonnel = useMemo(() => personnel.filter(p => {
-    if (isAdmin) return !p.isAdmin;
+    if (isAdmin) {
+      if (p.isAdmin) return false;
+      if (selectedTeamId !== 'all' && p.teamId !== selectedTeamId) return false;
+      return true;
+    }
     if (activeUser?.isHoT) {
       return p.teamId === activeUser.teamId && !p.isAdmin && p.currentStatus !== PresenceStatus.ABROAD;
     }
     return false;
-  }), [personnel, isAdmin, activeUser]);
+  }), [personnel, isAdmin, activeUser, selectedTeamId]);
 
   const [initialDraft, setInitialDraft] = useState<Record<string, string[]>>({});
   const [draft, setDraft] = useState<Record<string, string[]>>({});
@@ -55,7 +60,7 @@ export const Scheduler = () => {
     if (hasChanges) return;
 
     const newDraft: Record<string, string[]> = {};
-    const myPids = new Set(myPersonnel.map(p => p.id));
+    const visiblePids = new Set(myPersonnel.map(p => p.id));
 
     shifts.forEach(shift => {
       const start = parseISO(shift.startTime);
@@ -66,7 +71,7 @@ export const Scheduler = () => {
       
       if (type) {
         const key = getSlotKey(start, type);
-        const validPids = (shift.personnelIds || []).filter(pid => myPids.has(pid));
+        const validPids = (shift.personnelIds || []).filter(pid => visiblePids.has(pid));
         if (validPids.length > 0) {
           newDraft[key] = [...(newDraft[key] || []), ...validPids];
         }
@@ -74,7 +79,7 @@ export const Scheduler = () => {
     });
     setInitialDraft(normalizeDraft(newDraft));
     setDraft(normalizeDraft(newDraft));
-  }, [shifts, myPersonnel, hasChanges, startDate]); // Added hasChanges and startDate to dependencies
+  }, [shifts, myPersonnel, hasChanges, startDate]);
 
   const isSlotPast = (date: Date, type: 'day' | 'night') => {
     const now = new Date();
@@ -100,13 +105,9 @@ export const Scheduler = () => {
       } else {
         next = [...current, pid];
       }
-      
       const newDraft = { ...prev };
-      if (next.length === 0) {
-        delete newDraft[key];
-      } else {
-        newDraft[key] = next.sort();
-      }
+      if (next.length === 0) delete newDraft[key];
+      else newDraft[key] = next.sort();
       return newDraft;
     });
   };
@@ -117,7 +118,6 @@ export const Scheduler = () => {
     try {
       const additions: any[] = [];
       const removals: any[] = [];
-      
       const normInitial = normalizeDraft(initialDraft);
       const normDraft = normalizeDraft(draft);
       const allKeys = new Set([...Object.keys(normInitial), ...Object.keys(normDraft)]);
@@ -140,12 +140,8 @@ export const Scheduler = () => {
           endTime = addHours(setMinutes(setHours(new Date(dateStr), 21), 0), 12).toISOString();
         }
 
-        current.filter(pid => !initial.includes(pid)).forEach(pid => {
-          additions.push({ personnel_id: pid, start_time: startTime, end_time: endTime });
-        });
-        initial.filter(pid => !current.includes(pid)).forEach(pid => {
-          removals.push({ personnel_id: pid, start_time: startTime, end_time: endTime });
-        });
+        current.filter(pid => !initial.includes(pid)).forEach(pid => additions.push({ personnel_id: pid, start_time: startTime, end_time: endTime }));
+        initial.filter(pid => !current.includes(pid)).forEach(pid => removals.push({ personnel_id: pid, start_time: startTime, end_time: endTime }));
       });
 
       if (additions.length === 0 && removals.length === 0) {
@@ -157,11 +153,8 @@ export const Scheduler = () => {
       await syncShifts(additions, removals);
       setInitialDraft(normDraft);
       showNotification(`הסידור סונכרן! נוספו: ${additions.length}, הוסרו: ${removals.length}`, 'success');
-    } catch (err) {
-      showNotification('שגיאה בסנכרון הסידור', 'error');
-    } finally {
-      setIsSaving(false);
-    }
+    } catch (err) { showNotification('שגיאה בסנכרון הסידור', 'error'); }
+    finally { setIsSaving(false); }
   };
 
   return (
@@ -171,54 +164,41 @@ export const Scheduler = () => {
           <div>
             <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">סידור עבודה</h2>
             <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">
-              צוות: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{isAdmin ? 'כלל היחידה' : activeUser?.fullName}</span>
+              צפייה בסידור: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{isAdmin && selectedTeamId === 'all' ? 'כל היחידה' : (teams.find(t => t.id === selectedTeamId)?.name || activeUser?.fullName)}</span>
             </p>
           </div>
 
-          {/* Week Navigator */}
-          <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 mr-0 sm:mr-4">
-            <button 
-              onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) setWeekOffset(prev => prev - 1); }}
-              className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300"
-              title="שבוע קודם"
-            >
-              <ChevronRight size={20} />
-            </button>
-            <div className="px-4 flex items-center gap-2 border-x border-zinc-200 dark:border-zinc-700 mx-1">
-              <Calendar size={16} className="text-indigo-500" />
-              <span className="text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">
-                {format(startDate, 'dd/MM')} - {format(weekDays[6], 'dd/MM')}
-              </span>
-            </div>
-            <button 
-              onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) setWeekOffset(prev => prev + 1); }}
-              className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300"
-              title="שבוע הבא"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            {weekOffset !== 0 && (
-              <button 
-                onClick={() => setWeekOffset(0)}
-                className="mr-2 px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-600 transition-colors"
+          {/* Team Filter (Admin Only) */}
+          {isAdmin && (
+            <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 mr-0 sm:mr-4">
+              <Filter size={16} className="text-zinc-400 mr-2" />
+              <select 
+                className="bg-transparent text-sm font-bold outline-none p-1 min-w-[140px]"
+                value={selectedTeamId}
+                onChange={(e) => {
+                  if (!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) {
+                    setSelectedTeamId(e.target.value);
+                  }
+                }}
               >
-                היום
-              </button>
-            )}
+                <option value="all">כל הצוותים</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Week Navigator */}
+          <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 mr-0 sm:mr-2">
+            <button onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) setWeekOffset(prev => prev - 1); }} className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300" title="שבוע קודם"><ChevronRight size={20} /></button>
+            <div className="px-4 flex items-center gap-2 border-x border-zinc-200 dark:border-zinc-700 mx-1">
+              <Calendar size={16} className="text-indigo-500" /><span className="text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">{format(startDate, 'dd/MM')} - {format(weekDays[6], 'dd/MM')}</span>
+            </div>
+            <button onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו. להמשיך?')) setWeekOffset(prev => prev + 1); }} className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300" title="שבוע הבא"><ChevronLeft size={20} /></button>
+            {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} className="mr-2 px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-600 transition-colors">היום</button>}
           </div>
         </div>
 
-        <button
-          onClick={handleSave}
-          disabled={isSaving || !hasChanges}
-          className={clsx(
-            "w-full lg:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95",
-            (isSaving || !hasChanges) ? "bg-zinc-400 dark:bg-zinc-800 cursor-not-allowed opacity-50 text-zinc-100" : "bg-indigo-600 hover:bg-indigo-700 text-white"
-          )}
-        >
-          {isSaving ? <Clock className="animate-spin" size={20} /> : <Save size={20} />}
-          שמור שינויים
-        </button>
+        <button onClick={handleSave} disabled={isSaving || !hasChanges} className={clsx("w-full lg:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-2xl font-bold transition-all shadow-lg active:scale-95", (isSaving || !hasChanges) ? "bg-zinc-400 dark:bg-zinc-800 cursor-not-allowed opacity-50 text-zinc-100" : "bg-indigo-600 hover:bg-indigo-700 text-white")}>{isSaving ? <Clock className="animate-spin" size={20} /> : <Save size={20} />}שמור שינויים</button>
       </div>
 
       <div className="flex-1 overflow-auto p-4 lg:p-8">
@@ -236,93 +216,44 @@ export const Scheduler = () => {
             {weekDays.map((day, dayIdx) => {
               const dayKey = getSlotKey(day, 'day');
               const nightKey = getSlotKey(day, 'night');
-              
               const selectedDayPids = draft[dayKey] || [];
               const selectedNightPids = draft[nightKey] || [];
-              
               const dayPast = isSlotPast(day, 'day');
               const nightPast = isSlotPast(day, 'night');
 
               return (
                 <div key={dayIdx} className="flex flex-col min-h-[500px] bg-zinc-50/30 dark:bg-zinc-900/10">
                   <div className={clsx("p-3 flex-1 flex flex-col transition-all", dayPast && "opacity-40 grayscale bg-zinc-200/50 dark:bg-zinc-800/50")}>
-                    <div className="flex items-center gap-2 mb-2 text-amber-600 dark:text-amber-500 font-bold text-[9px] bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded-lg border border-amber-100 dark:border-amber-900/30 uppercase">
-                      <Sun size={10} /> יום {dayPast && ' - עבר'}
-                    </div>
+                    <div className="flex items-center gap-2 mb-2 text-amber-600 dark:text-amber-500 font-bold text-[9px] bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded-lg border border-amber-100 dark:border-amber-900/30 uppercase"><Sun size={10} /> יום {dayPast && ' - עבר'}</div>
                     <div className="flex-1 space-y-1">
-                      {myPersonnel
-                        .slice()
-                        .sort((a, b) => {
-                          const aSelected = selectedDayPids.includes(a.id);
-                          const bSelected = selectedDayPids.includes(b.id);
-                          if (aSelected && !bSelected) return -1;
-                          if (!aSelected && bSelected) return 1;
-                          return a.fullName.localeCompare(b.fullName, 'he');
-                        })
-                        .map(p => (
-                        <button
-                          key={p.id}
-                          disabled={dayPast || isSaving}
-                          onClick={() => toggleSoldierInSlot(dayKey, p.id, day, 'day')}
-                          className={clsx(
-                            "w-full text-right p-1.5 rounded-lg border transition-all text-[11px] font-bold flex justify-between items-center group",
-                            selectedDayPids.includes(p.id) 
-                              ? "bg-indigo-600 dark:bg-indigo-500 border-indigo-700 dark:border-indigo-400 text-white shadow-sm" 
-                              : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-indigo-300 dark:hover:border-indigo-500",
-                            (dayPast || isSaving) && "cursor-not-allowed border-transparent shadow-none"
-                          )}
-                        >
-                          <span className="truncate">{p.fullName}</span>
-                          {selectedDayPids.includes(p.id) && !dayPast && <X size={10} className="opacity-50" />}
-                        </button>
+                      {myPersonnel.slice().sort((a, b) => {
+                        const aS = selectedDayPids.includes(a.id);
+                        const bS = selectedDayPids.includes(b.id);
+                        if (aS && !bS) return -1;
+                        if (!aS && bS) return 1;
+                        return a.fullName.localeCompare(b.fullName, 'he');
+                      }).map(p => (
+                        <button key={p.id} disabled={dayPast || isSaving} onClick={() => toggleSoldierInSlot(dayKey, p.id, day, 'day')} className={clsx("w-full text-right p-1.5 rounded-lg border transition-all text-[11px] font-bold flex justify-between items-center group", selectedDayPids.includes(p.id) ? "bg-indigo-600 dark:bg-indigo-500 border-indigo-700 dark:border-indigo-400 text-white shadow-sm" : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-indigo-300 dark:hover:border-indigo-500", (dayPast || isSaving) && "cursor-not-allowed border-transparent shadow-none")}><span className="truncate">{p.fullName}</span>{selectedDayPids.includes(p.id) && !dayPast && <X size={10} className="opacity-50" />}</button>
                       ))}
                     </div>
                   </div>
-
                   <div className={clsx("p-3 flex-1 flex flex-col border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/30 transition-all", nightPast && "opacity-40 grayscale bg-zinc-300/50 dark:bg-zinc-800/50")}>
-                    <div className="flex items-center gap-2 mb-2 text-indigo-600 dark:text-indigo-400 font-bold text-[9px] bg-indigo-50 dark:bg-indigo-950/20 p-1.5 rounded-lg border border-indigo-100 dark:border-indigo-900/30 uppercase">
-                      <Moon size={10} /> לילה {nightPast && ' - עבר'}
-                    </div>
+                    <div className="flex items-center gap-2 mb-2 text-indigo-600 dark:text-indigo-400 font-bold text-[9px] bg-indigo-50 dark:bg-indigo-950/20 p-1.5 rounded-lg border border-indigo-100 dark:border-indigo-900/30 uppercase"><Moon size={10} /> לילה {nightPast && ' - עבר'}</div>
                     <div className="flex-1 space-y-1">
-                      {myPersonnel
-                        .slice()
-                        .sort((a, b) => {
-                          const aSelected = selectedNightPids.includes(a.id);
-                          const bSelected = selectedNightPids.includes(b.id);
-                          if (aSelected && !bSelected) return -1;
-                          if (!aSelected && bSelected) return 1;
-                          return a.fullName.localeCompare(b.fullName, 'he');
-                        })
-                        .map(p => (
-                        <button
-                          key={p.id}
-                          disabled={nightPast || isSaving}
-                          onClick={() => toggleSoldierInSlot(nightKey, p.id, day, 'night')}
-                          className={clsx(
-                            "w-full text-right p-1.5 rounded-lg border transition-all text-[11px] font-bold flex justify-between items-center group",
-                            selectedNightPids.includes(p.id) 
-                              ? "bg-slate-800 dark:bg-slate-700 border-zinc-900 dark:border-zinc-600 text-white shadow-sm" 
-                              : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-slate-500",
-                            (nightPast || isSaving) && "cursor-not-allowed border-transparent shadow-none"
-                          )}
-                        >
-                          <span className="truncate">{p.fullName}</span>
-                          {selectedNightPids.includes(p.id) && !nightPast && <X size={10} className="opacity-50" />}
-                        </button>
+                      {myPersonnel.slice().sort((a, b) => {
+                        const aS = selectedNightPids.includes(a.id);
+                        const bS = selectedNightPids.includes(b.id);
+                        if (aS && !bS) return -1;
+                        if (!aS && bS) return 1;
+                        return a.fullName.localeCompare(b.fullName, 'he');
+                      }).map(p => (
+                        <button key={p.id} disabled={nightPast || isSaving} onClick={() => toggleSoldierInSlot(nightKey, p.id, day, 'night')} className={clsx("w-full text-right p-1.5 rounded-lg border transition-all text-[11px] font-bold flex justify-between items-center group", selectedNightPids.includes(p.id) ? "bg-slate-800 dark:bg-slate-700 border-zinc-900 dark:border-zinc-600 text-white shadow-sm" : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-slate-500", (nightPast || isSaving) && "cursor-not-allowed border-transparent shadow-none")}><span className="truncate">{p.fullName}</span>{selectedNightPids.includes(p.id) && !nightPast && <X size={10} className="opacity-50" />}</button>
                       ))}
                     </div>
                   </div>
                 </div>
               );
             })}
-          </div>
-        </div>
-        <div className="mt-6 flex items-center gap-6 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-sm transition-colors">
-          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-600 dark:bg-indigo-500 rounded-full"></div><span className="font-bold text-zinc-700 dark:text-zinc-300 text-xs">נבחר ליום</span></div>
-          <div className="flex items-center gap-2"><div className="w-3 h-3 bg-slate-800 dark:bg-slate-700 rounded-full"></div><span className="font-bold text-zinc-700 dark:text-zinc-300 text-xs">נבחר ללילה</span></div>
-          <div className="flex items-center gap-2 text-zinc-400 dark:text-zinc-500 mr-auto text-xs font-medium">
-            <AlertTriangle size={14} />
-            <span>מצב סנכרון: נשלחים רק שינויים (תוספות והסרות) לשרת.</span>
           </div>
         </div>
       </div>

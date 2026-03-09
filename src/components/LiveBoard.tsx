@@ -29,7 +29,6 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; hasActiveShift
   const isCriticalDelay = isWayToBase && transitTime > 4 * 60 * 60 * 1000;
   const isDelayed = (isWayToBase || isWayHome) && transitTime > 2 * 60 * 60 * 1000;
 
-  // Specific Alert Logic
   const isMissing = hasActiveShift && person.currentStatus !== PresenceStatus.BASE_SHIFT;
   const shouldGoHome = !hasActiveShift && person.currentStatus === PresenceStatus.BASE_SHIFT;
 
@@ -50,74 +49,38 @@ const PersonnelCard: React.FC<{ person: Personnel; index: number; hasActiveShift
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           className={clsx(
-            'p-2 rounded-lg border transition-all relative overflow-hidden',
-            snapshot.isDragging ? 'shadow-lg ring-2 ring-indigo-500/50 scale-105' : 'hover:border-zinc-300 dark:hover:border-zinc-600',
-            !snapshot.isDragging && !isDelayed && !isCriticalDelay && !isMissing && !shouldGoHome && 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100',
-            
+            'p-3 rounded-xl border transition-all relative overflow-hidden min-h-[85px] flex flex-col justify-between',
+            snapshot.isDragging ? 'shadow-2xl ring-2 ring-indigo-500 scale-105 z-[100] bg-white dark:bg-zinc-800' : 'hover:border-zinc-300 dark:hover:border-zinc-600',
+            !snapshot.isDragging && !isDelayed && !isCriticalDelay && !isMissing && !shouldGoHome && 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm',
             isDelayed && !isCriticalDelay && 'border-amber-400 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50',
             isCriticalDelay && 'border-orange-500 ring-2 ring-orange-500/30 bg-orange-50 dark:bg-orange-950/30 animate-pulse',
-            
             isMissing && 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/30 dark:bg-rose-950/20',
             shouldGoHome && 'border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20',
-            
             isDragDisabled && !snapshot.isDragging ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
           )}
         >
-          {isMissing && (
-            <div className="absolute top-0 left-0 bg-rose-500 text-white p-0.5 rounded-br-md animate-pulse z-10">
-              <PhoneCall size={10} />
-            </div>
-          )}
-          {shouldGoHome && (
-            <div className="absolute top-0 left-0 bg-indigo-500 text-white p-0.5 rounded-br-md z-10">
-              <LogOut size={10} />
-            </div>
-          )}
-          {isCriticalDelay && !isMissing && (
-            <div className="absolute top-0 left-0 bg-orange-500 text-white p-0.5 rounded-br-md z-10">
-              <AlertCircle size={10} />
-            </div>
-          )}
+          {isMissing && <div className="absolute top-0 left-0 bg-rose-500 text-white p-1 rounded-br-lg animate-pulse z-10"><PhoneCall size={12} /></div>}
+          {shouldGoHome && <div className="absolute top-0 left-0 bg-indigo-500 text-white p-1 rounded-br-lg z-10"><LogOut size={12} /></div>}
+          {isCriticalDelay && !isMissing && <div className="absolute top-0 left-0 bg-orange-500 text-white p-1 rounded-br-lg z-10"><AlertCircle size={12} /></div>}
 
           <div className="flex justify-between items-start text-right">
             <div className="min-w-0 flex-1">
-              <h4 className="font-bold text-xs truncate leading-tight">{person.fullName}</h4>
-              <div className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
-                <Phone size={10} className="shrink-0" />
-                <span dir="ltr" className="tabular-nums">{person.phoneNumber}</span>
+              <h4 className="font-bold text-sm truncate leading-tight mb-1">{person.fullName}</h4>
+              <div className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-bold">
+                <Phone size={12} className="shrink-0" />
+                <span dir="ltr" className="tabular-nums tracking-wide">{person.phoneNumber}</span>
               </div>
-              {alertLabel && (
-                <p className={clsx(
-                  "text-[9px] font-black mt-0.5 uppercase tracking-tighter",
-                  isMissing ? "text-rose-600 dark:text-rose-400 animate-pulse" : "text-indigo-600 dark:text-indigo-400"
-                )}>
-                  {alertLabel}
-                </p>
-              )}
+              {alertLabel && <p className={clsx("text-[10px] font-black mt-1 uppercase tracking-tight", isMissing ? "text-rose-600 dark:text-rose-400 animate-pulse" : "text-indigo-600 dark:text-indigo-400")}>{alertLabel}</p>}
             </div>
-            {person.isReservist && (
-              <span className="px-1 py-0.5 rounded text-[8px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 shrink-0 mr-1">
-                מילואים
-              </span>
-            )}
+            {person.isReservist && <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 shrink-0 mr-2">מילואים</span>}
           </div>
           
-          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 justify-end font-medium">
-            {(isDelayed || isCriticalDelay || isMissing) && <Clock size={10} className={clsx(isCriticalDelay || isMissing ? "text-rose-500" : "text-amber-500")} />}
-            <span className={clsx(
-              (isCriticalDelay || isMissing) ? "text-rose-600 dark:text-rose-400 font-black" : 
-              isDelayed ? "text-amber-600 dark:text-amber-400 font-bold" : ""
-            )}>
-              {formatDistanceToNow(new Date(person.statusUpdatedAt), { locale: he, addSuffix: true })}
-            </span>
-            {!isDelayed && !isCriticalDelay && !isMissing && <Clock size={10} className="shrink-0" />}
+          <div className="flex items-center gap-1.5 mt-2 text-[10px] text-zinc-400 dark:text-zinc-500 justify-end font-bold uppercase tracking-tighter">
+            {(isDelayed || isCriticalDelay || isMissing) && <Clock size={12} className={clsx(isCriticalDelay || isMissing ? "text-rose-500" : "text-amber-500")} />}
+            <span className={clsx((isCriticalDelay || isMissing) ? "text-rose-600 dark:text-rose-400" : isDelayed ? "text-amber-600 dark:text-amber-400" : "")}>{formatDistanceToNow(new Date(person.statusUpdatedAt), { locale: he, addSuffix: true })}</span>
+            {!isDelayed && !isCriticalDelay && !isMissing && <Clock size={12} className="shrink-0 opacity-50" />}
           </div>
-
-          {person.statusNote && (
-            <div className="mt-1 text-[9px] text-zinc-400 dark:text-zinc-500 bg-zinc-50 dark:bg-zinc-950/50 p-1 rounded italic text-right truncate">
-              {person.statusNote}
-            </div>
-          )}
+          {person.statusNote && <div className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950/50 p-1.5 rounded-lg border border-zinc-100 dark:border-zinc-800/50 italic text-right truncate">{person.statusNote}</div>}
         </div>
       )}
     </Draggable>
@@ -128,32 +91,20 @@ export const LiveBoard = () => {
   const { personnel, updatePersonnelStatus, teams, shifts, activeUser } = useAppContext();
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-
   const isAdmin = activeUser?.isAdmin;
 
-  const filteredPersonnel = (selectedTeam === 'all' 
-    ? personnel 
-    : personnel.filter(p => p.teamId === selectedTeam))
+  const filteredPersonnel = (selectedTeam === 'all' ? personnel : personnel.filter(p => p.teamId === selectedTeam))
     .filter(p => !p.isAdmin)
-    .filter(p => {
-      if (isAdmin) return true;
-      if (activeUser?.isHoT) return p.currentStatus !== PresenceStatus.ABROAD;
-      return true;
-    })
+    .filter(p => isAdmin ? true : (activeUser?.isHoT ? p.currentStatus !== PresenceStatus.ABROAD : true))
     .filter(p => p.fullName.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const onDragEnd = (result: DropResult) => {
     if (!isAdmin) return;
     const { destination, source, draggableId } = result;
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-
+    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
     const newStatus = destination.droppableId as PresenceStatus;
-    let note = undefined;
-    if (newStatus === PresenceStatus.ABROAD) {
-      note = window.prompt('נא לספק סיבה לשהייה בחו"ל:') || undefined;
-      if (!note) return;
-    }
+    let note = newStatus === PresenceStatus.ABROAD ? (window.prompt('נא לספק סיבה לשהייה בחו"ל:') || undefined) : undefined;
+    if (newStatus === PresenceStatus.ABROAD && !note) return;
     updatePersonnelStatus(draggableId, newStatus, note);
   };
 
@@ -162,53 +113,30 @@ export const LiveBoard = () => {
     const columnPersonnel = filteredPersonnel.filter(p => p.currentStatus === statusId);
     const Icon = column.icon;
     const now = new Date();
-    const isLongList = columnPersonnel.length > 6;
 
     return (
       <div key={statusId} className={clsx(
-        "flex-1 flex flex-col bg-zinc-100/50 dark:bg-zinc-900/30 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden min-w-[280px] lg:min-w-0",
-        isHalfHeight ? "" : "h-full"
+        "flex flex-col bg-zinc-100/50 dark:bg-zinc-900/30 rounded-[2rem] border border-zinc-200/60 dark:border-zinc-800/60 overflow-hidden",
+        "flex-1 min-w-[300px] lg:min-w-0", // FLEXIBLE WIDTH
+        isHalfHeight ? "h-auto" : "h-full"
       )}>
-        <div className={clsx('p-3 border-b flex items-center justify-between', column.color.split(' ')[0], column.color.split(' ')[2], 'dark:border-zinc-800')}>
-          <div className="flex items-center gap-2">
-            <Icon size={16} className={column.color.split(' ')[1]} />
-            <h3 className={clsx('font-semibold text-sm', column.color.split(' ')[1])}>
-              {column.label}
-            </h3>
+        <div className={clsx('p-4 border-b flex items-center justify-between bg-white dark:bg-zinc-900/50 dark:border-zinc-800')}>
+          <div className="flex items-center gap-3">
+            <div className={clsx('p-2 rounded-xl', column.color.split(' ')[0])}><Icon size={18} className={column.color.split(' ')[1]} /></div>
+            <h3 className="font-black text-sm text-zinc-900 dark:text-white uppercase tracking-tight">{column.label}</h3>
           </div>
-          <span className="bg-white/50 dark:bg-zinc-800/50 px-2 py-0.5 rounded-full text-xs font-bold text-zinc-700 dark:text-zinc-300">
-            {columnPersonnel.length}
-          </span>
+          <span className="bg-zinc-200 dark:bg-zinc-800 px-3 py-1 rounded-full text-xs font-black text-zinc-600 dark:text-zinc-400 tabular-nums">{columnPersonnel.length}</span>
         </div>
-        
         <Droppable droppableId={statusId}>
           {(provided, snapshot) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className={clsx(
-                'flex-1 p-3 overflow-y-auto transition-colors',
-                snapshot.isDraggingOver ? 'bg-indigo-50/50 dark:bg-indigo-950/10' : '',
-                isLongList ? 'grid grid-cols-2 gap-2 content-start' : 'flex flex-col gap-2'
-              )}
-            >
-              {columnPersonnel
-                .slice()
-                .sort((a, b) => {
-                  if (statusId !== PresenceStatus.HOME) return 0;
-                  const aMissing = shifts.some(s => s.personnelIds?.includes(a.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
-                  const bMissing = shifts.some(s => s.personnelIds?.includes(b.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
-                  if (aMissing && !bMissing) return -1;
-                  if (!aMissing && bMissing) return 1;
-                  return 0;
-                })
-                .map((person, index) => {
-                const hasActiveShift = shifts.some(s => 
-                  s.personnelIds?.includes(person.id) && 
-                  new Date(s.startTime) <= now && 
-                  new Date(s.endTime) >= now
-                );
-
+            <div ref={provided.innerRef} {...provided.droppableProps} className={clsx('flex-1 p-4 overflow-y-auto transition-colors flex flex-col gap-3', snapshot.isDraggingOver ? 'bg-indigo-50/50 dark:bg-indigo-950/10' : '')}>
+              {columnPersonnel.slice().sort((a, b) => {
+                if (statusId !== PresenceStatus.HOME) return 0;
+                const aMissing = shifts.some(s => s.personnelIds?.includes(a.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
+                const bMissing = shifts.some(s => s.personnelIds?.includes(b.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
+                return (aMissing && !bMissing) ? -1 : (!aMissing && bMissing ? 1 : 0);
+              }).map((person, index) => {
+                const hasActiveShift = shifts.some(s => s.personnelIds?.includes(person.id) && new Date(s.startTime) <= now && new Date(s.endTime) >= now);
                 return <PersonnelCard key={person.id} person={person} index={index} hasActiveShift={hasActiveShift} isDragDisabled={!isAdmin} />;
               })}
               {provided.placeholder}
@@ -220,63 +148,36 @@ export const LiveBoard = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-50/50 dark:bg-zinc-950/50 relative">
-      <div className="p-4 lg:p-6 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 text-right transition-colors duration-200" dir="rtl">
+    <div className="h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 relative transition-colors duration-200">
+      <div className="p-6 lg:p-8 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 text-right transition-colors" dir="rtl">
         <div>
-          <h2 className="text-xl lg:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">לוח נוכחות בזמן אמת</h2>
-          <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">גרור ושחרר אנשי צוות כדי לעדכן סטטוס.</p>
+          <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter">לוח נוכחות חמ"ל</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium italic">ניהול סטטוס כוח אדם בזמן אמת</p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:gap-6 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto">
           <div className="relative">
-            <input 
-              type="text" 
-              placeholder="חיפוש לפי שם..."
-              className="w-full lg:w-64 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none p-2 pr-9 text-right transition-all"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <Search className="absolute right-3 top-2.5 text-zinc-400 dark:text-zinc-500" size={16} />
+            <input type="text" placeholder="חיפוש חייל..." className="w-full lg:w-72 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none p-3 pr-10 text-right transition-all" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <Search className="absolute right-3.5 top-3.5 text-zinc-400 dark:text-zinc-500" size={18} />
           </div>
-
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">סינון:</label>
-            <select 
-              className="flex-1 lg:flex-none bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none p-2 min-w-[140px] transition-all"
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
-            >
-              <option value="all">כל הצוותים</option>
-              {teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
+          <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-800 p-1 rounded-2xl border border-zinc-200 dark:border-zinc-700">
+            <select className="bg-transparent text-zinc-900 dark:text-white text-sm font-bold outline-none p-2 min-w-[160px] text-right" value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)}>
+              <option value="all">כל היחידה</option>
+              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto lg:overflow-hidden p-4 lg:p-6 relative" dir="rtl">
+      <div className="flex-1 p-6 lg:p-8" dir="rtl">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-4 h-full min-w-max lg:min-w-0 lg:w-full">
+          <div className="flex gap-6 h-full w-full">
             {COLUMN_LAYOUT.map((item, idx) => {
-              if (item.type === 'single') {
-                return renderColumn(item.id);
-              } else {
-                return (
-                  <div key={`group-${idx}`} className="flex-1 flex flex-col gap-4 h-full">
-                    {item.ids.map(id => renderColumn(id, true))}
-                  </div>
-                );
-              }
+              if (item.type === 'single') return renderColumn(item.id);
+              return <div key={`group-${idx}`} className="flex-1 flex flex-col gap-6 h-full">{item.ids.map(id => renderColumn(id, true))}</div>;
             })}
           </div>
         </DragDropContext>
-        
-        {!isAdmin && (
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-zinc-900/90 dark:bg-zinc-100/10 backdrop-blur-md text-white dark:text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-2xl border border-zinc-700 dark:border-zinc-600 z-50 animate-bounce pointer-events-none transition-all">
-            מצב צפייה בלבד - רק מנהל רשאי לעדכן סטטוס בגרירה
-          </div>
-        )}
+        {!isAdmin && <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-zinc-900/90 dark:bg-zinc-100/10 backdrop-blur-xl text-white px-8 py-4 rounded-3xl text-sm font-black shadow-2xl border border-white/10 z-[100] animate-in fade-in slide-in-from-bottom-10">מצב צפייה בלבד</div>}
       </div>
     </div>
   );
