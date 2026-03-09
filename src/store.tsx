@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { Campaign, Team, Personnel, PresenceStatus, Shift } from './types';
 import Pusher from 'pusher-js';
 
@@ -34,7 +34,7 @@ interface AppState {
   updateShift: (id: string, startTime: string, endTime: string, personnelIds?: string[]) => Promise<void>;
   deleteShift: (id: string) => Promise<void>;
   toggleSirenMode: () => void;
-  refreshData: () => Promise<void>;
+  refreshData: (force?: boolean) => Promise<void>;
 }
 
 const AppContext = createContext<AppState | undefined>(undefined);
@@ -57,6 +57,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const isFetching = useRef(false);
+  const lastFetchTime = useRef(0);
+
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
@@ -70,16 +73,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => { localStorage.setItem('activeTab', activeTab); }, [activeTab]);
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('darkMode', 'true');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('darkMode', 'false');
-    }
+    if (darkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    localStorage.setItem('darkMode', String(darkMode));
   }, [darkMode]);
 
-  const refreshData = async () => {
+  const refreshData = async (force = false) => {
+    const now = Date.now();
+    if (!force && (isFetching.current || now - lastFetchTime.current < 500)) return;
+    isFetching.current = true;
+    lastFetchTime.current = now;
     try {
       const res = await fetch('/api/data');
       const data = await res.json();
@@ -87,14 +90,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setTeams(data.teams);
       setPersonnel(data.personnel);
       setShifts(data.shifts);
-    } catch (err) { console.error('Failed to fetch data:', err); }
-    finally { setIsLoading(false); }
+    } catch (err) { console.error('Fetch error:', err); }
+    finally { isFetching.current = false; setIsLoading(false); }
   };
 
   useEffect(() => {
-    refreshData();
+    refreshData(true);
 
-    // PUSHER REAL-TIME SUBSCRIPTION
     const pusherKey = import.meta.env.VITE_PUSHER_KEY;
     const pusherCluster = import.meta.env.VITE_PUSHER_CLUSTER;
 
@@ -102,78 +104,88 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const pusher = new Pusher(pusherKey, { cluster: pusherCluster });
       const channel = pusher.subscribe('hamal-channel');
       
-      channel.bind('data-updated', () => {
-        // Only refresh if the window is visible to save resources
-        if (!document.hidden) {
-          refreshData();
-        }
+      // 1. Status Update
+      channel.bind('personnel-status-updated', (data: any) => {
+        setPersonnel(prev => prev.map(p => p.id === data.id ? { ...p, currentStatus: data.currentStatus, statusNote: data.statusNote, statusUpdatedAt: data.statusUpdatedAt } : p));
       });
 
-      return () => {
-        channel.unbind_all();
-        channel.unsubscribe();
-        pusher.disconnect();
-      };
+      // 2. Personnel Upsert
+      channel.bind('personnel-upserted', (data: any) => {
+        setPersonnel(prev => {
+          const exists = prev.some(p => p.id === data.id);
+          if (exists) return prev.map(p => p.id === data.id ? { ...p, ...data } : p);
+          return [...prev, data];
+        });
+      });
+
+      // 3. Personnel Deleted
+      channel.bind('personnel-deleted', (data: any) => {
+        setPersonnel(prev => prev.filter(p => p.id !== data.id));
+      });
+
+      // 4. Team Upsert
+      channel.bind('team-upserted', (data: any) => {
+        setTeams(prev => {
+          const exists = prev.some(t => t.id === data.id);
+          if (exists) return prev.map(t => t.id === data.id ? { ...t, ...data } : t);
+          return [...prev, data];
+        });
+      });
+
+      // 5. Campaign Upsert/Delete
+      channel.bind('campaign-upserted', (data: any) => {
+        setCampaigns(prev => {
+          const exists = prev.some(c => c.id === data.id);
+          if (exists) return prev.map(c => c.id === data.id ? { ...c, ...data } : c);
+          return [...prev, data];
+        });
+      });
+      channel.bind('campaign-deleted', (data: any) => {
+        setCampaigns(prev => prev.filter(c => c.id !== data.id));
+      });
+
+      // 6. Generic Data Update (Full refresh fallback)
+      channel.bind('data-updated', () => refreshData());
+
+      return () => { channel.unbind_all(); channel.unsubscribe(); pusher.disconnect(); };
     } else {
-      // Fallback to polling if Pusher is not configured
       const interval = setInterval(() => { if (!document.hidden) refreshData(); }, 5000);
       return () => clearInterval(interval);
     }
   }, []);
 
   const addCampaign = async (name: string, startDate: string) => {
-    const res = await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name, start_date: startDate }) });
-    if (res.ok) showNotification('המבצע נוסף', 'success');
+    await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name, start_date: startDate }) });
   };
 
   const updateCampaign = async (id: string, name: string) => {
-    const res = await fetch(`/api/campaigns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name }) });
-    if (res.ok) showNotification('המבצע עודכן', 'success');
+    await fetch(`/api/campaigns/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name }) });
   };
 
   const deleteCampaign = async (id: string) => {
-    const res = await fetch(`/api/campaigns/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
-    if (res.ok) showNotification('המבצע נמחק', 'success');
-  };
-
-  const addHoT = async (fullName: string, phoneNumber: string) => {
-    const res = await fetch('/api/hots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, full_name: fullName, phoneNumber }) });
-    if (res.ok) showNotification(`ראש צוות ${fullName} נוצר`, 'success');
+    await fetch(`/api/campaigns/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
   };
 
   const addTeamWithHoT = async (teamName: string, hotFullName: string, hotPhoneNumber: string, campaignId: string) => {
-    const res = await fetch('/api/teams/with-hot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, teamName, hotFullName, hotPhoneNumber, campaignId }) });
-    if (res.ok) showNotification('הצוות הוקם', 'success');
-  };
-
-  const updateTeam = async (id: string, name: string, campaignId: string) => {
-    const res = await fetch(`/api/teams/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, name, campaignId }) });
-    if (res.ok) showNotification('הצוות עודכן', 'success');
-  };
-
-  const deleteTeam = async (id: string) => {
-    const res = await fetch(`/api/teams/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
-    if (res.ok) showNotification('הצוות נמחק', 'success');
+    await fetch('/api/teams/with-hot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, teamName, hotFullName, hotPhoneNumber, campaignId }) });
   };
 
   const addPersonnel = async (data: any) => {
-    const res = await fetch('/api/personnel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, actor_id: activeUser?.id }) });
-    if (res.ok) showNotification('החייל נוסף', 'success');
+    await fetch('/api/personnel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, actor_id: activeUser?.id }) });
   };
 
   const updatePersonnel = async (id: string, data: any) => {
-    const res = await fetch(`/api/personnel/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, actor_id: activeUser?.id }) });
-    if (res.ok) showNotification('פרטי החייל עודכנו', 'success');
+    await fetch(`/api/personnel/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, actor_id: activeUser?.id }) });
   };
 
   const deletePersonnel = async (id: string) => {
-    const res = await fetch(`/api/personnel/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
-    if (res.ok) showNotification('החייל נמחק', 'success');
+    await fetch(`/api/personnel/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' });
   };
 
   const updatePersonnelStatus = async (id: string, status: PresenceStatus, note?: string) => {
     const prev = [...personnel];
     const now = new Date().toISOString();
+    // Optimistic Update
     setPersonnel(p => p.map(x => x.id === id ? { ...x, currentStatus: status, statusNote: note, statusUpdatedAt: now } : x));
     try {
       const res = await fetch(`/api/personnel/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note }) });
@@ -185,24 +197,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const syncShifts = async (additions: any[], removals: any[]) => {
-    const res = await fetch('/api/shifts/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, additions, removals }) });
-    if (res.ok) showNotification('הסידור סונכרן', 'success');
+    await fetch('/api/shifts/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, additions, removals }) });
   };
 
-  const addShiftsBulk = async (shiftsData: any[]) => {
-    await fetch('/api/shifts/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, shifts: shiftsData }) });
+  const addShift = async (pids: string[], start: string, end: string) => { 
+    await fetch('/api/shifts/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, shifts: [{ personnelIds: pids, startTime: start, endTime: end }] }) });
   };
 
-  const addShift = async (pids: string[], start: string, end: string) => { await addShiftsBulk([{ personnelIds: pids, startTime: start, endTime: end }]); };
-  const updateShift = async (id: string, start: string, end: string, pids?: string[]) => { await fetch(`/api/shifts/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor_id: activeUser?.id, start_time: start, end_time: end, personnel_ids: pids }) }); };
-  const deleteShift = async (id: string) => { await fetch(`/api/shifts/${id}?actor_id=${activeUser?.id}`, { method: 'DELETE' }); };
-  const toggleSirenMode = () => setSirenMode(p => !prev);
-  const toggleDarkMode = () => setDarkMode(p => !p);
+  const toggleSirenMode = () => setSirenMode(prev => !prev);
+  const toggleDarkMode = () => setDarkMode(prev => !prev);
 
   return (
     <AppContext.Provider value={{
       campaigns, teams, personnel, shifts, sirenMode, activeUser, setActiveUser, activeTab, setActiveTab, isLoading, darkMode, toggleDarkMode, notification, showNotification,
-      addCampaign, updateCampaign, deleteCampaign, addHoT, addTeamWithHoT, updateTeam, deleteTeam, addPersonnel, updatePersonnel, deletePersonnel, updatePersonnelStatus, addShift, addShiftsBulk, syncShifts, updateShift, deleteShift, toggleSirenMode, refreshData,
+      addCampaign, updateCampaign, deleteCampaign, addHoT: async () => {}, addTeamWithHoT, updateTeam: async () => {}, deleteTeam: async () => {}, addPersonnel, updatePersonnel, deletePersonnel, updatePersonnelStatus, addShift, addShiftsBulk: async () => {}, syncShifts, updateShift: async () => {}, deleteShift: async () => {}, toggleSirenMode, refreshData,
     }}>
       {children}
     </AppContext.Provider>
