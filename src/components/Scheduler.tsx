@@ -29,6 +29,12 @@ export const Scheduler = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isConsecutiveGuardEnabled, setIsConsecutiveGuardEnabled] = useState(true);
   const [onlyReservists, setOnlyReservists] = useState(false);
+  
+  // Mobile Day State
+  const [mobileDayIndex, setMobileDayIndex] = useState(() => {
+    const today = new Date().getDay();
+    return today; // 0-6
+  });
 
   const startDate = useMemo(() => {
     const base = startOfWeek(new Date(), { weekStartsOn: 0 });
@@ -43,50 +49,30 @@ export const Scheduler = () => {
 
   const hasChanges = useMemo(() => JSON.stringify(normalizeDraft(initialDraft)) !== JSON.stringify(normalizeDraft(draft)), [initialDraft, draft]);
 
-  // ISOLATION LOGIC: Load existing shifts into draft
   useEffect(() => {
     if (hasChanges) return;
     const newDraft: Record<string, string[]> = {};
-    
-    // Determine which team's shifts this user is allowed to see/edit
-    const targetTeamId = isAdmin ? selectedTeamId : activeUser?.teamId;
-
     shifts.forEach(shift => {
       const start = parseISO(shift.startTime), startHour = start.getHours();
       let type: 'day' | 'night' | null = (startHour === 9) ? 'day' : (startHour === 21 ? 'night' : null);
-      
       if (type) {
         const key = getSlotKey(start, type);
-        
-        // Filter the personnel inside this shift based on the user's scope
         const visiblePids = (shift.personnelIds || []).filter(pid => {
           const person = personnel.find(p => p.id === pid);
           if (!person) return false;
-          
-          // Staff Isolation: HoT only sees their team. Admin sees 'all' or specific filtered team.
           if (isStaff) {
-            if (isAdmin) {
-              if (selectedTeamId !== 'all' && person.teamId !== selectedTeamId) return false;
-              return true;
-            }
-            // HoT is strictly isolated to their own team
+            if (isAdmin) return selectedTeamId === 'all' || person.teamId === selectedTeamId;
             return person.teamId === activeUser?.teamId;
           }
-          
-          // Guest View: respects global filters (Team/Search/Reservist)
           if (isGuest) {
             if (selectedTeamId !== 'all' && person.teamId !== selectedTeamId) return false;
             if (onlyReservists && !person.isReservist) return false;
             if (searchQuery && !person.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
             return true;
           }
-          
           return true;
         });
-
-        if (visiblePids.length > 0) {
-          newDraft[key] = [...(newDraft[key] || []), ...visiblePids];
-        }
+        if (visiblePids.length > 0) newDraft[key] = [...(newDraft[key] || []), ...visiblePids];
       }
     });
     setInitialDraft(normalizeDraft(newDraft));
@@ -131,7 +117,7 @@ export const Scheduler = () => {
       await syncShifts(additions, removals);
       setInitialDraft(normDraft);
       showNotification(`הסידור סונכרן!`, 'success');
-    } catch (err) { showNotification('שגיאה בסנכרון הסידור', 'error'); }
+    } catch (err) { showNotification('שגיאה בסנכרון', 'error'); }
     finally { setIsSaving(false); }
   };
 
@@ -140,14 +126,49 @@ export const Scheduler = () => {
     return getSlotKey(addDays(date, -1), 'night');
   };
 
+  const renderSlotPersonnel = (selectedPids: string[], type: 'day' | 'night', day: Date, dayKey: string) => {
+    let candidateList = [];
+    if (isStaff) {
+      candidateList = personnel.filter(p => {
+        if (p.isAdmin) return false;
+        if (isAdmin) {
+          if (selectedTeamId !== 'all' && p.teamId !== selectedTeamId) return false;
+        } else {
+          if (p.teamId !== activeUser?.teamId) return false;
+          if (p.currentStatus === PresenceStatus.ABROAD) return false;
+        }
+        if (onlyReservists && !p.isReservist) return false;
+        if (searchQuery && !p.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        if (isConsecutiveGuardEnabled && !selectedPids.includes(p.id)) {
+          const prevKey = type === 'day' ? getPrevSlotKey(day, 'day') : getSlotKey(day, 'day');
+          if ((draft[prevKey] || []).includes(p.id)) return false;
+        }
+        return true;
+      });
+    }
+    const assignedList = personnel.filter(p => selectedPids.includes(p.id) && (!isStaff || isAdmin || p.teamId === activeUser?.teamId));
+    const allVisible = isStaff ? Array.from(new Set([...candidateList, ...assignedList])) : assignedList;
+
+    return allVisible.sort((a,b) => {
+      const aS = selectedPids.includes(a.id), bS = selectedPids.includes(b.id);
+      if(aS && !bS) return -1; if(!aS && bS) return 1; return a.fullName.localeCompare(b.fullName, 'he');
+    }).map(p => (
+      <button key={p.id} disabled={isGuest || (type === 'day' ? isSlotPast(day, 'day') : isSlotPast(day, 'night')) || isSaving} onClick={() => toggleSoldierInSlot(type === 'day' ? dayKey : getSlotKey(day, 'night'), p.id, day, type)} className={clsx("w-full text-right p-1.5 rounded-lg border transition-all text-[11px] font-bold flex justify-between items-center group", selectedPids.includes(p.id) ? (type === 'day' ? "bg-indigo-600 dark:bg-indigo-500 border-indigo-700" : "bg-slate-800 dark:bg-slate-700 border-zinc-900") + " text-white shadow-sm" : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-indigo-300 dark:hover:border-indigo-500", isGuest && "cursor-default pointer-events-none")}>
+        <span className="truncate">{p.fullName}</span>
+        {selectedPids.includes(p.id) && !isGuest && !(type === 'day' ? isSlotPast(day, 'day') : isSlotPast(day, 'night')) && <X size={10} className="opacity-50" />}
+      </button>
+    ));
+  };
+
   return (
     <div className="h-full flex flex-col bg-transparent text-right transition-colors duration-200" dir="rtl">
+      {/* Top Header */}
       <div className="p-4 lg:p-8 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/40 dark:bg-zinc-900/20 backdrop-blur-xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 transition-colors shrink-0">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
           <div>
             <h2 className="text-2xl lg:text-3xl font-black text-zinc-900 dark:text-white tracking-tight">{isGuest ? 'סידור משמרות' : 'סידור עבודה'}</h2>
-            <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">
-              צפייה בסידור: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{isAdmin ? (selectedTeamId === 'all' ? 'כל היחידה' : (teams.find(t => t.id === selectedTeamId)?.name)) : (teams.find(t => t.id === activeUser?.teamId)?.name || 'הצוות שלי')}</span>
+            <p className="text-xs lg:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium italic">
+              צפייה בסידור: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{selectedTeamId === 'all' ? 'כל היחידה' : (teams.find(t => t.id === selectedTeamId)?.name)}</span>
             </p>
           </div>
 
@@ -156,15 +177,13 @@ export const Scheduler = () => {
               <Users size={14}/> {onlyReservists ? 'מציג מילואים' : 'כל החיילים'}
             </button>
 
-            {isAdmin && (
-              <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-800/50 p-1.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50">
-                <Filter size={16} className="text-zinc-400 mr-2" />
-                <select className="bg-transparent text-sm font-bold outline-none p-1 min-w-[140px]" value={selectedTeamId} onChange={(e) => { if (!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו?')) setSelectedTeamId(e.target.value); }}>
-                  <option value="all">כל הצוותים</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-            )}
+            <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-800/50 p-1.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50">
+              <Filter size={16} className="text-zinc-400 mr-2" />
+              <select className="bg-transparent text-sm font-bold outline-none p-1 min-w-[120px]" value={selectedTeamId} onChange={(e) => { if (!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו?')) setSelectedTeamId(e.target.value); }}>
+                <option value="all">כל הצוותים</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
 
             {isStaff && (
               <div className="flex items-center gap-1 group relative">
@@ -181,13 +200,13 @@ export const Scheduler = () => {
               <Search className="absolute right-3 top-3 text-zinc-400" size={14} />
             </div>
 
-            <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-800/50 p-1.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50 mr-0 sm:mr-2">
+            <div className="flex items-center gap-2 bg-white/50 dark:bg-zinc-800/50 p-1.5 rounded-2xl border border-zinc-200/50 dark:border-zinc-700/50">
               <button onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו?')) setWeekOffset(prev => prev - 1); }} className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300" title="שבוע קודם"><ChevronRight size={20} /></button>
               <div className="px-4 flex items-center gap-2 border-x border-zinc-200 dark:border-zinc-700 mx-1">
                 <Calendar size={16} className="text-indigo-500" /><span className="text-sm font-black text-zinc-900 dark:text-white whitespace-nowrap">{format(startDate, 'dd/MM')} - {format(weekDays[6], 'dd/MM')}</span>
               </div>
               <button onClick={() => { if(!hasChanges || window.confirm('שינויים שלא נשמרו יאבדו?')) setWeekOffset(prev => prev + 1); }} className="p-2 hover:bg-white dark:hover:bg-zinc-700 rounded-xl transition-all text-zinc-600 dark:text-zinc-300" title="שבוע הבא"><ChevronLeft size={20} /></button>
-              {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} className="mr-2 px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-600 transition-colors">היום</button>}
+              {weekOffset !== 0 && <button onClick={() => setWeekOffset(0)} className="mr-2 px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-bold rounded-lg hover:bg-indigo-600 transition-colors uppercase">היום</button>}
             </div>
           </div>
         </div>
@@ -199,9 +218,20 @@ export const Scheduler = () => {
         )}
       </div>
 
+      {/* Mobile Day Selector (ONLY VISIBLE ON MOBILE) */}
+      <div className="lg:hidden flex items-center justify-between p-4 bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+        <button onClick={() => setMobileDayIndex(prev => (prev + 1) % 7)} className="p-2 bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700"><ChevronRight size={20}/></button>
+        <div className="text-center">
+          <div className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{format(weekDays[mobileDayIndex], 'EEEE', { locale: he })}</div>
+          <div className="text-xl font-black text-zinc-900 dark:text-white">{format(weekDays[mobileDayIndex], 'dd/MM')}</div>
+        </div>
+        <button onClick={() => setMobileDayIndex(prev => (prev - 1 + 7) % 7)} className="p-2 bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700"><ChevronLeft size={20}/></button>
+      </div>
+
       <div className="flex-1 overflow-auto p-4 lg:p-8">
-        <div className="min-w-[1000px] lg:min-w-0 bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col transition-colors">
-          <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+        <div className="min-w-0 lg:min-w-0 bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden flex flex-col transition-colors">
+          {/* Header Row (HIDDEN ON MOBILE) */}
+          <div className="hidden lg:grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
             {weekDays.map((day, i) => (
               <div key={i} className="p-4 text-center border-l border-zinc-200 dark:border-zinc-800 last:border-0">
                 <div className="text-[10px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">{format(day, 'EEEE', { locale: he })}</div>
@@ -210,81 +240,29 @@ export const Scheduler = () => {
             ))}
           </div>
 
-          <div className="flex-1 grid grid-cols-7 divide-x divide-x-reverse divide-zinc-100 dark:divide-zinc-800">
+          {/* Grid Content */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-7 divide-x divide-x-reverse divide-zinc-100 dark:divide-zinc-800 h-full">
             {weekDays.map((day, dayIdx) => {
+              // ON MOBILE: Only show the selected day
+              const isVisibleOnMobile = dayIdx === mobileDayIndex;
               const dayKey = getSlotKey(day, 'day'), nightKey = getSlotKey(day, 'night');
               const sDP = draft[dayKey] || [], sNP = draft[nightKey] || [];
               const dP = isSlotPast(day, 'day'), nP = isSlotPast(day, 'night');
-              const pToD = draft[getPrevSlotKey(day, 'day')] || [], pToN = sDP;
-
-              const renderSlotPersonnel = (selectedPids: string[], type: 'day' | 'night') => {
-                const currentSlotKey = type === 'day' ? dayKey : nightKey;
-                
-                // For selection list (the candidates you can click to add)
-                let candidateList = [];
-                if (isStaff) {
-                  candidateList = personnel.filter(p => {
-                    if (p.isAdmin) return false;
-                    if (isAdmin) {
-                      if (selectedTeamId !== 'all' && p.teamId !== selectedTeamId) return false;
-                    } else {
-                      if (p.teamId !== activeUser?.teamId) return false;
-                      if (p.currentStatus === PresenceStatus.ABROAD) return false;
-                    }
-                    // Apply common filters
-                    if (onlyReservists && !p.isReservist) return false;
-                    if (searchQuery && !p.fullName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-                    // Consecutive guard (if not already selected)
-                    if (isConsecutiveGuardEnabled && !selectedPids.includes(p.id)) {
-                      const prevPids = type === 'day' ? pToD : pToN;
-                      if (prevPids.includes(p.id)) return false;
-                    }
-                    return true;
-                  });
-                }
-
-                // For assigned list (the people who are already in the shift)
-                // HoTs only see their own soldiers in this view
-                const assignedList = personnel.filter(p => {
-                  if (!selectedPids.includes(p.id)) return false;
-                  if (isStaff && !isAdmin && p.teamId !== activeUser?.teamId) return false;
-                  return true;
-                });
-
-                // Final Merge & Sort
-                const allVisible = isStaff ? Array.from(new Set([...candidateList, ...assignedList])) : assignedList;
-
-                return allVisible.sort((a,b) => {
-                  const aS = selectedPids.includes(a.id), bS = selectedPids.includes(b.id);
-                  if(aS && !bS) return -1; if(!aS && bS) return 1; return a.fullName.localeCompare(b.fullName, 'he');
-                }).map(p => (
-                  <button
-                    key={p.id}
-                    disabled={isGuest || (type === 'day' ? dP : nP) || isSaving}
-                    onClick={() => toggleSoldierInSlot(currentSlotKey, p.id, day, type)}
-                    className={clsx(
-                      "w-full text-right p-1.5 rounded-lg border transition-all text-[11px] font-bold flex justify-between items-center group",
-                      selectedPids.includes(p.id) 
-                        ? (type === 'day' ? "bg-indigo-600 dark:bg-indigo-500 border-indigo-700" : "bg-slate-800 dark:bg-slate-700 border-zinc-900") + " text-white shadow-sm"
-                        : "bg-white dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 hover:border-indigo-300 dark:hover:border-indigo-500",
-                      isGuest && "cursor-default pointer-events-none"
-                    )}
-                  >
-                    <span className="truncate">{p.fullName}</span>
-                    {selectedPids.includes(p.id) && !isGuest && !(type === 'day' ? dP : nP) && <X size={10} className="opacity-50" />}
-                  </button>
-                ));
-              };
 
               return (
-                <div key={dayIdx} className="flex flex-col min-h-[500px] bg-zinc-50/30 dark:bg-zinc-900/10">
+                <div key={dayIdx} className={clsx(
+                  "flex-col min-h-[500px] bg-zinc-50/30 dark:bg-zinc-900/10",
+                  isVisibleOnMobile ? "flex" : "hidden lg:flex"
+                )}>
+                  {/* Day Slot */}
                   <div className={clsx("p-3 flex-1 flex flex-col transition-all", dP && "opacity-40 grayscale bg-zinc-200/50 dark:bg-zinc-800/50")}>
                     <div className="flex items-center gap-2 mb-2 text-amber-600 dark:text-amber-500 font-bold text-[9px] bg-amber-50 dark:bg-amber-950/20 p-1.5 rounded-lg border border-amber-100 dark:border-amber-900/30 uppercase"><Sun size={10} /> יום</div>
-                    <div className="flex-1 space-y-1">{renderSlotPersonnel(sDP, 'day')}</div>
+                    <div className="flex-1 space-y-1">{renderSlotPersonnel(sDP, 'day', day, dayKey)}</div>
                   </div>
+                  {/* Night Slot */}
                   <div className={clsx("p-3 flex-1 flex flex-col border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/30 transition-all", nP && "opacity-40 grayscale bg-zinc-300/50 dark:bg-zinc-800/50")}>
                     <div className="flex items-center gap-2 mb-2 text-indigo-600 dark:text-indigo-400 font-bold text-[9px] bg-indigo-50 dark:bg-indigo-950/20 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/30 uppercase"><Moon size={10} /> לילה</div>
-                    <div className="flex-1 space-y-1">{renderSlotPersonnel(sNP, 'night')}</div>
+                    <div className="flex-1 space-y-1">{renderSlotPersonnel(sNP, 'night', day, dayKey)}</div>
                   </div>
                 </div>
               );
